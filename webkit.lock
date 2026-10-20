@@ -1,0 +1,7 @@
+# The WebKit release the port is built on. The WPE release tarball (sources.lock) lacks WebCore's curl network backend
+# (Source/WebCore/platform/network/curl); recipes/fetch_sources.sh takes that directory from the same tag in WebKit's git
+# repository and checks the commit.
+WEBKIT_VERSION=2.54.1
+WEBKIT_GIT=https://github.com/WebKit/WebKit.git
+WEBKIT_TAG=wpewebkit-2.54.1
+WEBKIT_COMMIT=537776966344c4982751692dd475c94124504271

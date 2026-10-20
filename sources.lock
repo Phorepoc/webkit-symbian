@@ -1,0 +1,16 @@
+# The source releases the recipes build (recipes/fetch_sources.sh checks every hash).
+# name	file	sha256	url
+webkit	wpewebkit-2.54.1.tar.xz	0de8bdfba011f9cd63ba9a9171fa6038dd2c08237894f4082abbb821f29d3fe9	https://wpewebkit.org/releases/wpewebkit-2.54.1.tar.xz
+icu	icu4c-74_2-src.tgz	68db082212a96d6f53e35d60f47d38b962e9f9d207a74cfac78029ae8ff5e08c	https://github.com/unicode-org/icu/releases/download/release-74-2/icu4c-74_2-src.tgz
+freetype	freetype-2.13.3.tar.xz	0550350666d427c74daeb85d5ac7bb353acba5f76956395995311a9c6f063289	https://download.savannah.gnu.org/releases/freetype/freetype-2.13.3.tar.xz
+harfbuzz	harfbuzz-10.1.0.tar.xz	6ce3520f2d089a33cef0fc48321334b8e0b72141f6a763719aaaecd2779ecb82	https://github.com/harfbuzz/harfbuzz/releases/download/10.1.0/harfbuzz-10.1.0.tar.xz
+libxml2	libxml2-2.13.5.tar.xz	74fc163217a3964257d3be39af943e08861263c4231f9ef5b496b6f6d4c7b2b6	https://download.gnome.org/sources/libxml2/2.13/libxml2-2.13.5.tar.xz
+libxslt	libxslt-1.1.42.tar.xz	85ca62cac0d41fc77d3f6033da9df6fd73d20ea2fc18b0a3609ffb4110e1baeb	https://download.gnome.org/sources/libxslt/1.1/libxslt-1.1.42.tar.xz
+sqlite	sqlite-amalgamation-3470200.zip	aa73d8748095808471deaa8e6f34aa700e37f2f787f4425744f53fdd15a89c40	https://www.sqlite.org/2024/sqlite-amalgamation-3470200.zip
+libwebp	libwebp-1.4.0.tar.gz	61f873ec69e3be1b99535634340d5bde750b2e4447caa1db9f61be3fd49ab1e5	https://storage.googleapis.com/downloads.webmproject.org/releases/webp/libwebp-1.4.0.tar.gz
+libjpeg-turbo	libjpeg-turbo-3.0.4.tar.gz	99130559e7d62e8d695f2c0eaeef912c5828d5b84a0537dcb24c9678c9d5b76b	https://github.com/libjpeg-turbo/libjpeg-turbo/releases/download/3.0.4/libjpeg-turbo-3.0.4.tar.gz
+openssl	openssl-3.5.4.tar.gz	967311f84955316969bdb1d8d4b983718ef42338639c621ec4c34fddef355e99	https://github.com/openssl/openssl/releases/download/openssl-3.5.4/openssl-3.5.4.tar.gz
+zlib	zlib-1.3.1.tar.gz	9a93b2b7dfdac77ceba5a558a580e74667dd6fede4585b91eefb60f03b72df23	https://github.com/madler/zlib/releases/download/v1.3.1/zlib-1.3.1.tar.gz
+curl	curl-8.10.1.tar.gz	d15ebab765d793e2e96db090f0e172d127859d78ca6f6391d7eafecfd894bbc0	https://curl.se/download/curl-8.10.1.tar.gz
+libpng	libpng-1.6.44.tar.gz	8c25a7792099a0089fa1cc76c94260d0bb3f1ec52b93671b572f8bb61577b732	https://download.sourceforge.net/libpng/libpng-1.6.44.tar.gz
+libnspsl	libnspsl-0.1.7-src.tar.gz	3684cec32f555daed431993e0bf6cbd9374f6c908446237e089f0b61d694ac80	https://download.netsurf-browser.org/libs/releases/libnspsl-0.1.7-src.tar.gz

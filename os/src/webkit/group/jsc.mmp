@@ -1,0 +1,22 @@
+// Copyright The Phorepoc Authors
+// SPDX-License-Identifier: BSD-2-Clause
+
+// jsc.mmp -- the JavaScriptCore shell (WebKit 2.54.1 JSCOnly, CLoop, no JIT) as an Open C EXE.
+// The engine is a PREBUILT set of archives (build_jsc.sh -> package_jsc.sh -> thirdparty/x86/cxxrt/*.a), linked via the registry's
+// x32_archives; only the Symbian-API shim (phsym.cpp) is compiled here, on the real Symbian line.
+TARGET			jsc.exe
+TARGETTYPE		exe
+UID				0x1000007a 0xE7015771
+CAPABILITY		None
+EPOCHEAPSIZE	0x100000 0x4000000
+EPOCSTACKSIZE	0x100000
+OS_LAYER_SYSTEMINCLUDE_SYMBIAN
+OS_LAYER_LIBC_SYSTEMINCLUDE
+SOURCEPATH		..
+SOURCE			phsym.cpp
+SOURCEPATH		../../cxxrt
+SOURCE			ph_throw.cpp
+STATICLIBRARY	libcrt0.lib
+LIBRARY			libc.lib libm.lib libpthread.lib
+LIBRARY			euser.lib
+SMPSAFE

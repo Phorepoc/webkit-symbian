@@ -1,0 +1,31 @@
+// Copyright The Phorepoc Authors
+// SPDX-License-Identifier: BSD-2-Clause
+
+// phebrctl.mmp -- the BrCtl facade over WebKit 2.54. Built to the
+// ROM name browserengine.dll with the old engine's UIDs: BrowserNG, Messaging's HTML viewer and Help load it by name and call
+// CreateBrowserControlL (ordinal 1, the only export any client imports). The engine is a PREBUILT set of archives (webkit-symbian
+// recipes: build_webcore.sh phengine -> package_web.sh -> $PHOREPOC_BUILD/thirdparty/x86/cxxrt/web/*.a), linked through the
+// registry's x32_archives; compiled here: the facade, the Symbian-API shim (phebsym.cpp) and ph_throw.cpp.
+TARGET			browserengine.dll
+TARGETTYPE		dll
+UID				0x1000008D 0x101F8712
+CAPABILITY		ALL -Tcb
+EPOCALLOWDLLDATA
+
+OS_LAYER_SYSTEMINCLUDE_SYMBIAN
+OS_LAYER_LIBC_SYSTEMINCLUDE
+APP_LAYER_SYSTEMINCLUDE
+USERINCLUDE		../../webkit/phwebview
+
+SOURCEPATH		..
+SOURCE			phebrctl.cpp phebsym.cpp
+SOURCEPATH		../../cxxrt
+SOURCE			ph_throw.cpp
+
+LIBRARY			euser.lib cone.lib fbscli.lib gdi.lib ws32.lib esock.lib eikcoctl.lib eikctl.lib fepbase.lib
+LIBRARY			libc.lib libm.lib libpthread.lib
+#ifdef MARM
+LIBRARY			efsrv.lib commdb.lib centralrepository.lib
+#endif
+UNPAGED
+SMPSAFE

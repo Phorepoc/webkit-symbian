@@ -1,0 +1,49 @@
+webkit-symbian: the browser engine of Phorepoc, WebKit on Symbian
+Copyright The Phorepoc Authors (see AUTHORS)
+
+Phorepoc was founded by Kyriakos Bompotis.
+
+Our files (os/src, recipes, registry, tests) are licensed under the BSD 2-Clause License (LICENSE), the licence WebKit
+uses for the new files of a port, so that the port can be contributed upstream.
+
+WebKit itself is not copied here: recipes/fetch_sources.sh fetches the WPE WebKit 2.54.1 release (and the curl network
+backend of the same tag from WebKit's git repository), pinned by SHA-256 and commit in sources.lock and webkit.lock, and
+apply_patches.sh / patch.py edit that tree and add our files to it. WebKit is copyright Apple Inc. and the other WebKit
+contributors, under the GNU Lesser General Public License 2.1 (WebCore, JavaScriptCore, parts of WTF; LICENSES/LGPL-2.1.txt)
+and a BSD 2-clause licence (Apple's files, WTF, bmalloc; LICENSES/WebKit-Apple-BSD-2-Clause.txt). The engine is built
+into separate DLLs (browserengine.dll, and the test executables) and never linked into other components, so that the LGPL's
+relinking right holds: build.sh leaves the engine's archives in $PHOREPOC_BUILD/thirdparty/*/cxxrt/web/, and the registry
+entries link them, so a modified WebKit can be relinked into the same DLL.
+
+Files in os/src/webkit/phwebview adapted from WebKit files (PhDatabaseProvider.*, from WebKitLegacy's
+WebDatabaseProvider.*, and PhIDBServer.*, from InProcessIDBServer.*) keep their original notices (Apple Inc., BSD
+2-clause). Other files of the port implement WebCore interfaces and follow the structure of WebKit files they stand in
+for (PhPlatformStrategies.cpp, ResourceHandleSymbian.cpp, the *MbedTLS.cpp alternatives of the curl backend's TLS helpers,
+the Symbian seams in os/src/webkit/symbian); where code is copied from WebKit (OpenSSLHelperMbedTLS.cpp copies one helper
+of OpenSSLHelper.cpp, Sony Interactive Entertainment, BSD 2-clause) it stays under WebKit's licence.
+
+Not part of this repository, fetched and built at build time (sources.lock), each under its own licence (LICENSES/):
+
+- ICU 74.2: Unicode License v3 (ICU-Unicode-3.0.txt)
+- curl 8.10.1: the curl licence (curl.txt)
+- OpenSSL 3.5.4: Apache-2.0 (OpenSSL-Apache-2.0.txt); WebCrypto and curl's TLS
+- SQLite 3.47.2: public domain (SQLite-public-domain.txt)
+- libxml2 2.13.5 and libxslt 1.1.42: MIT (libxml2-libxslt-MIT.txt)
+- libwebp 1.4.0: BSD 3-clause (libwebp-BSD-3-Clause.txt)
+- libjpeg-turbo 3.0.4: BSD 3-clause, IJG and zlib licences (libjpeg-turbo.md)
+- libpng 1.6.44: the libpng licence (libpng-2.0.txt)
+- zlib 1.3.1: the zlib licence (zlib.txt)
+- FreeType 2.13.3: the FreeType License (FreeType-FTL.txt)
+- HarfBuzz 10.1.0: the "Old MIT" licence (HarfBuzz-MIT.txt)
+- libnspsl 0.1.7 (NetSurf's public suffix list library; the Mozilla Public Suffix List, MPL-2.0, is compiled into it): MIT (libnspsl-MIT.txt)
+- Skia, ANGLE headers, and the other libraries bundled in the WebKit tree: each under the licence of its directory in the
+  WebKit release (Skia: BSD 3-clause, Skia-BSD-3-Clause.txt)
+- the CA bundle (Mozilla's roots as curl publishes them, MPL-2.0 data) is the tls repository's (recipes/fetch_cacert.sh) and
+  is shipped with the OS image, not linked into code
+- mbedTLS (Apache-2.0 option), used only by the alternative TLS-only layer (*MbedTLS.cpp), is the tls repository's
+
+The Symbian OS and Open C headers the code compiles against come from the Phorepoc core repository (EPL-1.0) and are not copied here. The 2010 browser control interface (BrCtlInterface.h) that
+os/src/phebrctl implements is the Symbian Foundation's, unmodified, under the EPL.
+
+Thanks to the WebKit, WPE and Skia projects, and to every library listed above; to the NetSurf project for libnspsl, and
+to the Symbian Foundation for releasing the platform.

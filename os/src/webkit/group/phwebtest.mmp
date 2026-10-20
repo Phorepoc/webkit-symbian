@@ -1,0 +1,25 @@
+// Copyright The Phorepoc Authors
+// SPDX-License-Identifier: BSD-2-Clause
+
+// phwebtest.mmp -- the WebKit page test (WebCore + JSC + Skia, wpewebkit 2.54.1)
+// as an Open C EXE: in-memory HTML -> render tree text + a Skia raster paint (d:/page.ppm). The engine is a PREBUILT set of
+// archives (build_webcore.sh -> package_web.sh -> thirdparty/x86/cxxrt/web/*.a), linked via the registry's x32_archives;
+// only the Symbian-API shim (phsym.cpp) is compiled here, as for jsc.mmp.
+TARGET			phwebtest.exe
+TARGETTYPE		exe
+UID				0x1000007a 0xE7015772
+CAPABILITY		None
+// heap max 384 MB (was 128; the phone gives Symbian 1 GB). JSC MemoryExhaustion on dom/nodes/name-validation.html was guest RAM
+// (MEM=512 left a 356 MB RAM bank after the ROM), see phweb_iter.sh MEM
+EPOCHEAPSIZE	0x100000 0x18000000
+EPOCSTACKSIZE	0x100000
+OS_LAYER_SYSTEMINCLUDE_SYMBIAN
+OS_LAYER_LIBC_SYSTEMINCLUDE
+SOURCEPATH		..
+SOURCE			phsym.cpp
+SOURCEPATH		../../cxxrt
+SOURCE			ph_throw.cpp
+STATICLIBRARY	libcrt0.lib
+LIBRARY			libc.lib libm.lib libpthread.lib
+LIBRARY			euser.lib
+SMPSAFE
