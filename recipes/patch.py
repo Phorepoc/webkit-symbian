@@ -220,7 +220,7 @@ for f, old, new in E:
                 s = re.sub(r"(?<![A-Za-z0-9_>])" + re.escape(a), b, s)
         if "PH_ALLOC_H" not in s:
             i = s.index("#include")
-            decl = open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "symbian", "PhAlloc.h")).read()
+            decl = open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "os", "src", "webkit", "symbian", "PhAlloc.h")).read()
             s = s[:i] + decl + "\n" + s[i:]
         if s != orig:   # never touch an unchanged file: bmalloc.h is in nearly every JSC TU (a new mtime = a full rebuild)
             open(p, "w", newline="").write(s)
