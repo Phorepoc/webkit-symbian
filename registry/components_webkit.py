@@ -48,6 +48,12 @@ COMPONENTS = {
                      allow_wsd=True, static_ctors=True, rtti=False, defs=["__SOFTFP="],
                      x32_archives=_web("x32", "phengine")
                      + [f"thirdparty/x86/cxxrt/{a}.a" for a in ("libphcompat", "libstdc++", "libgcc_eh", "libgcc")]),
+    # The WebKit engine as a Phorepoc web-engine package: an ECom plug-in (interface 0xE7016B01, phewebengine repository) over the
+    # same engine archives as phebrctl. The browser frontend discovers and loads it; no engine ships in the ROM by default.
+    "phewebengine_webkit": dict(mmp=os.path.join(OS_ROOT, "src/phewebengine_webkit/group/phewebengine_webkit.mmp"),
+                                allow_wsd=True, static_ctors=True, rtti=False, defs=["__SOFTFP="],
+                                x32_archives=_web("x32", "phengine")
+                                + [f"thirdparty/x86/cxxrt/{a}.a" for a in ("libphcompat", "libstdc++", "libgcc_eh", "libgcc")]),
     # The page test on ARM, JSC with the JIT (ARCH=arm bash build.sh builds every archive into thirdparty/arm/).
     "phwebtest_arm": dict(mmp=os.path.join(OS_ROOT, "src/webkit/group/phwebtest.mmp"), rom="phwebtest.exe", device=True,
                           allow_wsd=True, static_ctors=True, rtti=False, defs=["__SOFTFP="], stack=0x100000,
