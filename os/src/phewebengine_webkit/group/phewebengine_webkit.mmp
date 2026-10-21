@@ -1,0 +1,37 @@
+// Copyright The Phorepoc Authors
+// SPDX-License-Identifier: Apache-2.0
+
+// phewebengine_webkit.mmp -- the WebKit web-engine package (an ECom plug-in implementing phewebengine.h's PheWebEngineApi).
+// The engine is the same PREBUILT set of archives phebrctl links (recipes: build_webcore.sh phengine -> package_web.sh), linked
+// through the registry's x32_archives; compiled here: the adapter, the Symbian-API shim (phebsym.cpp) and ph_throw.cpp.
+// phewebengine.h / phewebengine_ecom.h come from the phewebengine repository (a layer / -I on its os/inc).
+TARGET			phewebengine_webkit.dll
+TARGETTYPE		plugin
+UID				0x10009D8D 0xE7016B10
+CAPABILITY		ALL -Tcb
+EPOCALLOWDLLDATA
+
+OS_LAYER_SYSTEMINCLUDE_SYMBIAN
+OS_LAYER_LIBC_SYSTEMINCLUDE
+APP_LAYER_SYSTEMINCLUDE
+USERINCLUDE		../../webkit/phwebview
+
+SOURCEPATH		..
+SOURCE			phewebengine_webkit.cpp
+SOURCEPATH		../../phebrctl
+SOURCE			phebsym.cpp
+SOURCEPATH		../../cxxrt
+SOURCE			ph_throw.cpp
+
+SOURCEPATH		..
+START RESOURCE	phewebengine_webkit.rss
+TARGET			phewebengine_webkit.rsc
+END
+
+LIBRARY			euser.lib ecom.lib esock.lib
+LIBRARY			libc.lib libm.lib libpthread.lib
+#ifdef MARM
+LIBRARY			efsrv.lib commdb.lib centralrepository.lib
+#endif
+UNPAGED
+SMPSAFE

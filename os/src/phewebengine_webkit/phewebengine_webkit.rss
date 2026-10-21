@@ -1,0 +1,29 @@
+// Copyright The Phorepoc Authors
+// SPDX-License-Identifier: Apache-2.0
+
+// phewebengine_webkit.rss -- the ECom registration of the WebKit engine package (interface PHE_WEBENGINE_ECOM_IFACE_UID).
+// The frontend reads display_name and default_data WITHOUT loading the DLL.
+#include <ecom/registryinfo.rh>
+
+RESOURCE REGISTRY_INFO theInfo
+	{
+	dll_uid = 0xE7016B10;
+	interfaces =
+		{
+		INTERFACE_INFO
+			{
+			interface_uid = 0xE7016B01;
+			implementations =
+				{
+				IMPLEMENTATION_INFO
+					{
+					implementation_uid = 0xE7016B10;
+					version_no = 1;
+					display_name = "WebKit";
+					default_data = "caps=script,tls13,snapshot;api=1";
+					opaque_data = "";
+					}
+				};
+			}
+		};
+	}
