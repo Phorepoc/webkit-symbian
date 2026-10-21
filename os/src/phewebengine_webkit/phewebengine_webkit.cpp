@@ -195,7 +195,19 @@ TBool ActiveIapName(TDes8& aName)
             RDebug::Printf("PH: [phebrctl] start WLAN: left %d up %d", sr, up);
             return sr == KErrNone && up;
 #else
-            return EFalse;
+            // no browser connection manager here (phebrctl gets the connection from BrowserNG): bring the default access point
+            // up ourselves, no dialog, and keep the connection for the process lifetime
+            if (gAttached.Open(gSockServ) != KErrNone)
+                return EFalse;
+            TRequestStatus cst;
+            gAttached.Start(cst);
+            User::WaitForRequest(cst);
+            RDebug::Printf("PH: [phewebengine_webkit] RConnection::Start(default) -> %d", cst.Int());
+            if (cst.Int() != KErrNone)
+                {
+                gAttached.Close();
+                return EFalse;
+                }
 #endif
             }
         gAttachedOpen = ETrue;
