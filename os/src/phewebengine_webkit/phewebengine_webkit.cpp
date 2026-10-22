@@ -177,6 +177,9 @@ TBool ActiveIapName(TDes8& aName)
                 TPckgBuf<TConnectionInfo> info;
                 if (probe.GetConnectionInfo(i, info) != KErrNone)
                     continue;
+#ifndef __arm__
+                break;      // x86: never attach to a connection another process owns (it may be going down, e.g. nettest exiting): Start our own below
+#endif
                 if (gAttached.Open(gSockServ) != KErrNone)
                     break;
                 if (gAttached.Attach(info, RConnection::EAttachTypeNormal) == KErrNone)
