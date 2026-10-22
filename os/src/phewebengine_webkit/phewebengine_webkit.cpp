@@ -467,7 +467,10 @@ void A_setting(PheView v, int id, int value)
 	}
 int A_lock_pixels(PheView v, const unsigned int** px, int* w, int* h, int* stride)
 	{
-	return ph_eng_lock_pixels(v, px, w, h, stride);
+	// the engine's ph_eng_lock_pixels answers 1 = locked (the lock stays held until unlock), 0 = nothing to show (no lock held); the
+	// plug-in interface (phewebengine.h) answers 0 = locked, non-zero = failed. Passing the engine's 1 through made the frontend treat
+	// every successful lock as a failure and never unlock: the engine thread then blocked for good on its mutex.
+	return ph_eng_lock_pixels(v, px, w, h, stride) ? 0 : -1;
 	}
 void A_unlock_pixels(PheView v) { ph_eng_unlock_pixels(v); }
 // a box-filtered scaled copy of the view buffer for the tab grid
