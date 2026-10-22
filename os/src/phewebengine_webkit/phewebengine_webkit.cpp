@@ -256,7 +256,7 @@ void StartEngineL()
 		}
 	// its own heap (WebKit allocates through malloc = this thread's heap) and the flexible memory model's largest stack
 	_LIT(KName, "phengine");
-	User::LeaveIfError(gEngine.Create(KName, EngineThreadFn, 0x100000, 0x100000, 0x18000000, NULL));
+	User::LeaveIfError(gEngine.Create(KName, EngineThreadFn, 0x100000, 0x100000, 0x08000000, NULL));
 	gEngine.SetPriority(EPriorityNormal);
 	gEngine.Resume();
 	gEngineStarted = ETrue;
