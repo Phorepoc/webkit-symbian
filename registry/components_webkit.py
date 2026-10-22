@@ -69,4 +69,12 @@ COMPONENTS = {
                          rom_data=[CA_BUNDLE],
                          arm_archives=_web("arm", "phengine")
                          + [f"thirdparty/arm/cxxrt/{a}.a" for a in ("libphcompat", "libstdc++")]),
+    # The WebKit engine plug-in on ARM (the same ECom plug-in over the same engine archives as phebrctl_arm); `device_rom` = it
+    # ships in every ARM ROM, where the browser frontend finds it. Carries the curl CA bundle (as phebrctl_arm does).
+    "phewebengine_webkit_arm": dict(mmp=os.path.join(OS_ROOT, "src/phewebengine_webkit/group/phewebengine_webkit.mmp"),
+                                    rom="phewebengine_webkit.dll", device=True, device_rom=True,
+                                    allow_wsd=True, static_ctors=True, rtti=False, defs=["__SOFTFP="],
+                                    rom_data=[CA_BUNDLE],
+                                    arm_archives=_web("arm", "phengine")
+                                    + [f"thirdparty/arm/cxxrt/{a}.a" for a in ("libphcompat", "libstdc++")]),
 }
