@@ -48,7 +48,7 @@ COMPONENTS = {
                      allow_wsd=True, static_ctors=True, rtti=False, defs=["__SOFTFP="],
                      x32_archives=_web("x32", "phengine")
                      + [f"thirdparty/x86/cxxrt/{a}.a" for a in ("libphcompat", "libstdc++", "libgcc_eh", "libgcc")]),
-    # The WebKit engine as a Phorepoc web-engine package: an ECom plug-in (interface 0xE7016B01, phewebengine repository) over the
+    # The WebKit engine as a Phorepoc web-engine package: an ECom plug-in (interface 0xE7016B01, webengine repository) over the
     # same engine archives as phebrctl. The browser frontend discovers and loads it; no engine ships in the ROM by default.
     "phewebengine_webkit": dict(mmp=os.path.join(OS_ROOT, "src/phewebengine_webkit/group/phewebengine_webkit.mmp"),
                                 allow_wsd=True, static_ctors=True, rtti=False, defs=["__SOFTFP="],

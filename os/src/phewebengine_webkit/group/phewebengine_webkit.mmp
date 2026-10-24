@@ -4,7 +4,7 @@
 // phewebengine_webkit.mmp -- the WebKit web-engine package (an ECom plug-in implementing phewebengine.h's PheWebEngineApi).
 // The engine is the same PREBUILT set of archives phebrctl links (recipes: build_webcore.sh phengine -> package_web.sh), linked
 // through the registry's x32_archives; compiled here: the adapter, the Symbian-API shim (phebsym.cpp) and ph_throw.cpp.
-// phewebengine.h / phewebengine_ecom.h come from the phewebengine repository (a layer / -I on its os/inc).
+// phewebengine.h / phewebengine_ecom.h come from the webengine repository (a layer / -I on its os/inc).
 TARGET			phewebengine_webkit.dll
 TARGETTYPE		plugin
 UID				0x10009D8D 0xE7016B10

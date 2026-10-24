@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // phewebengine_webkit.cpp -- the WebKit engine as a Phorepoc web-engine package: an ECom plug-in implementing the PheWebEngineApi
-// table (phewebengine repository, interface 0xE7016B01) over the existing embedding seam (PhEngineApi.h, the same engine thread
+// table (webengine repository, interface 0xE7016B01) over the existing embedding seam (PhEngineApi.h, the same engine thread
 // that browserengine.dll / phebrctl drives). A thin function table: every call maps to a ph_eng_* call, the events are translated,
 // the pixels are the engine's own buffer. Capabilities are reported honestly -- see KCaps below.
 #include <e32std.h>
