@@ -1,68 +1,57 @@
 # webkit-symbian
 
-The browser engine of [Phorepoc](https://github.com/Phorepoc): [WebKit](https://webkit.org) (WPE WebKit 2.54.1, pinned in
-`webkit.lock`) ported to Symbian. It is a modern engine (current HTML, CSS, JavaScript, TLS 1.3 through OpenSSL 3) behind the
-2010 browser control API (`CBrCtlInterface`, `phebrctl`), so the Symbian applications that embed a browser control (the 2010
-browser, Messaging's HTML viewer, Help) keep working and render with it. The new browser UI is still to be designed: the 2010
-browser's UI is not carried forward.
+This is a modern [WebKit](https://webkit.org) running on Symbian. It's WPE WebKit 2.54.1, with current HTML, CSS and
+JavaScript and TLS 1.3, sitting behind the browser control API Symbian apps have used since 2010. Apps that show web
+content, like Messaging's HTML viewer or Help, keep working unchanged and draw with the new engine.
 
-WebKit is not copied here. `recipes/` fetches the pinned releases and builds them over Open C, and `recipes/apply_patches.sh`
-adds the port to the tree. This repository holds the port, the Symbian shims and the recipes.
+The engine is ready to embed, but the new browser app on top of it hasn't been designed yet. We're not bringing the 2010
+browser's interface forward.
 
-| path | what |
-|---|---|
-| `os/src/webkit/port/` | the `Symbian` WebKit port's CMake files (`OptionsSymbian.cmake`, `Platform-*.cmake`): JavaScriptCore as the JSCOnly build (CLoop on x32, LLInt + Baseline JIT on ARM), WebCore + PAL on curl/OpenSSL, Skia (CPU raster), HarfBuzz, FreeType, ICU |
-| `os/src/webkit/symbian/` | the WTF seams: `OSAllocator` and memory footprint over Symbian's heap, code chunks for the JIT |
-| `os/src/webkit/platform-symbian/` | WebCore platform hooks: system fonts, MIME registry, pasteboard, accessibility cache, public suffixes, GL stubs |
-| `os/src/webkit/webcore/` | the curl backend's Symbian side: `ResourceHandleSymbian.cpp` (loads over curl), `CurlSSLHandleSymbian.cpp` (the ROM's CA bundle), and the mbedTLS alternatives of its TLS helpers |
-| `os/src/webkit/phwebview/` | the in-process embedding of WebCore: `PhEngine.cpp` (the engine thread and its C seam `PhEngineApi.h`), loader and database providers, `phwebtest.cpp` (the page test) |
-| `os/src/webkit/phsym.cpp`, `group/` | the Symbian-API shim (RAM size, stack bounds, clocks, entropy, serial log) and the mmps of `jsc.exe` and `phwebtest.exe` |
-| `os/src/phebrctl/` | `browserengine.dll`: the BrCtl facade (`CBrCtlInterface`) over the engine thread |
-| `recipes/` | fetch and build: ICU, FreeType, HarfBuzz, libxml2, libxslt, SQLite, libwebp, libjpeg-turbo, OpenSSL, zlib, curl, libpng, libnspsl, JavaScriptCore, WebCore; packaging into archives; the patch scripts; `curl_config.h` |
-| `registry/components_webkit.py` | the components: `jsc`, `phwebtest`, `phebrctl` (+ `_arm` for the two that ship on ARM) |
-| `tests/` | `jsc_boot.sh` (runs `hello.js` in the JavaScriptCore shell), `web_boot.sh` (loads a page), `ppm2png.py` |
-| `sources.lock`, `webkit.lock` | the pins (version, URL, SHA-256; WebKit tag and commit) |
-| `build.sh` | all of it, start to end |
-
-The engine needs the other layers of Phorepoc's build: [cxxrt](https://github.com/Phorepoc/cxxrt) (libstdc++, libphcompat),
-the [pdk](https://github.com/Phorepoc/pdk) (the pure-Open-C compiler wrappers, the POSIX header overlay) and, for https, the
-[tls](https://github.com/Phorepoc/tls) layer: the engine's TLS is OpenSSL 3, which the recipes build, but the CA bundle it
-verifies against (Mozilla's roots, `\resource\ssl\ca-bundle.crt` in the ROM) comes from the tls layer's
-`recipes/fetch_cacert.sh`. (The `*MbedTLS.cpp` files are an alternative TLS-only layer on the tls repository's mbedTLS
-(`$PHOREPOC_BUILD/tls/mbedtls-src`); it is not built by default.)
+We don't keep a copy of WebKit here. The recipes download the release named in `webkit.lock` and the libraries it
+needs, check each one against its SHA-256, and build them for Symbian. This repository holds the port itself and the
+recipes.
 
 ## Building
 
-This repository is a layer, like the adaptations: it adds its `os/` to the OS tree and its registry entries to core's. A full
-WebKit build takes hours (WebCore's unified sources need about 1.5 GB of RAM per compiler: `JOBS=4` on an 8 GB machine). Inside the toolchain's web image (`ghcr.io/phorepoc/web`, built from
-[toolchain](https://github.com/Phorepoc/toolchain)`/images/web`: CMake, Ninja, Ruby, gperf on top of the base image, which has
-GCC 13 with the x32 runtime and the Arm GNU toolchain for ARM), with [core](https://github.com/Phorepoc/core), the pdk,
-cxxrt and this repository checked out side by side and the include tree exported (`ph source export -a`):
+Be warned, a full build takes hours, and each compiler needs about 1.5 GB of RAM. On an 8 GB machine, use `JOBS=4`.
+
+WebKit needs [cxxrt](https://github.com/Phorepoc/cxxrt) for its C++ library. For https it also needs the
+[tls](https://github.com/Phorepoc/tls) repository, which supplies the certificates the engine trusts. Check out core,
+the [pdk](https://github.com/Phorepoc/pdk), cxxrt, tls and this repository side by side, and run
+`ph source export -a` once. Then build in the toolchain's web image:
 
 ```sh
 docker run --rm --cpus=6 -v "$PWD/..:/src" -e JOBS=4 -e PHOREPOC_PDK=/src/pdk -e PHOREPOC_CORE=/src/core \
     -e PHOREPOC_BUILD=/src/core/build -e PHOREPOC_ADAPTATIONS=/src/adaptation-x86-64 ghcr.io/phorepoc/web \
-    bash -c 'bash /src/cxxrt/build.sh && bash /src/webkit-symbian/build.sh'     # add -e ARCH=arm for ARM
+    bash -c 'bash /src/cxxrt/build.sh && bash /src/webkit-symbian/build.sh'
 ```
 
-(`PHOREPOC_ADAPTATIONS` here names the board's adaptation: the OS tree the Open C compile line is derived from. The pdk, core
-and a Symbian source tree must be there, with the include tree exported.)
-
-Output: the archives in `$PHOREPOC_BUILD/thirdparty/{x86,arm}/cxxrt/web/` and `.../lib/`; the work tree (sources, ICU, build
-directories, logs) in `$PHOREPOC_BUILD/webkit-symbian-work/`. Then build the components with the layers on
-`PHOREPOC_ADAPTATIONS`:
+Add `-e ARCH=arm` for the PinePhone. Once that's done, build the Symbian components:
 
 ```sh
-export PHOREPOC_ADAPTATIONS=<board adaptations>:<tls>:<cxxrt>:<webkit-symbian>
-ph component build -b pc phwebtest phebrctl        # ARM: ph component build -b pinephone -arch arm phebrctl_arm
+export PHOREPOC_ADAPTATIONS=<device repositories>:<tls>:<cxxrt>:<webkit-symbian>
+ph component build -b pc phwebtest phebrctl
 ```
 
-`phebrctl` builds to the ROM name `browserengine.dll` and replaces the 2010 engine in the image.
+On the PinePhone, that's `ph component build -b pinephone -arch arm phebrctl_arm`. `phebrctl` becomes
+`browserengine.dll` in the image and replaces the 2010 engine.
 
-## Licence
+## What's in here
 
-Our files are BSD-2-Clause (see `LICENSE`), copyright The Phorepoc Authors (`AUTHORS`), the licence WebKit asks of the new
-files of a port. WebKit is LGPL-2.1 and BSD-2-Clause; the engine is kept in separate DLLs and its archives are left for
-relinking. The libraries the recipes build keep their own licences (`LICENSES/`); `NOTICE` has the list.
+- `os/src/webkit/port/` is the Symbian port's build setup. JavaScriptCore runs with a JIT on ARM and an interpreter on
+  the PC, and pages are drawn by Skia on the CPU.
+- `os/src/webkit/symbian/` and `platform-symbian/` connect WebKit to Symbian's memory, fonts, file types and clipboard.
+- `os/src/webkit/webcore/` loads pages over curl, using the certificates in the ROM.
+- `os/src/webkit/phwebview/` runs the engine in its own thread inside the app, and `os/src/phebrctl/` puts the 2010
+  browser control API in front of it.
+- `recipes/` downloads and builds WebKit and the libraries it needs, including ICU, FreeType, HarfBuzz, SQLite,
+  OpenSSL and curl.
+- `tests/` has two boot tests. One runs a script in the JavaScript shell, and the other loads a web page.
 
-Contributions are welcome under the same terms: add yourself to `AUTHORS`.
+## License
+
+Our files are BSD-2-Clause, the license WebKit asks for in new port files. WebKit itself is LGPL-2.1 and BSD-2-Clause,
+and it's kept in its own libraries so you can relink it. The other libraries keep their own licenses, which `NOTICE`
+lists.
+
+Contributions are welcome under the same terms. Add your name to `AUTHORS` in your first pull request.
