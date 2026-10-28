@@ -22,18 +22,18 @@ the [pdk](https://github.com/Phorepoc/pdk), cxxrt, tls and this repository side 
 
 ```sh
 docker run --rm --cpus=6 -v "$PWD/..:/src" -e JOBS=4 -e PHOREPOC_PDK=/src/pdk -e PHOREPOC_CORE=/src/core \
-    -e PHOREPOC_BUILD=/src/core/build -e PHOREPOC_ADAPTATIONS=/src/adaptation-x86-64 ghcr.io/phorepoc/web \
+    -e PHOREPOC_BUILD=/src/core/build ghcr.io/phorepoc/web \
     bash -c 'bash /src/cxxrt/build.sh && bash /src/webkit-symbian/build.sh'
 ```
 
-Add `-e ARCH=arm` for the PinePhone. Once that's done, build the Symbian components:
+Add `-e ARCH=arm` for an ARM device. Once that's done, build the Symbian components:
 
 ```sh
 export PHOREPOC_ADAPTATIONS=<device repositories>:<tls>:<cxxrt>:<webkit-symbian>
-ph component build -b pc phwebtest phebrctl
+ph component build -b myboard phwebtest phebrctl
 ```
 
-On the PinePhone, that's `ph component build -b pinephone -arch arm phebrctl_arm`. `phebrctl` becomes
+For an ARM board, that's `ph component build -b myboard -arch arm phebrctl_arm`. `phebrctl` becomes
 `browserengine.dll` in the image and replaces the 2010 engine.
 
 ## What's in here

@@ -42,7 +42,7 @@ edit("WTF/wtf/posix/ThreadingPOSIX.cpp", '    bool signalIsInstalled = attemptTo
 edit("WTF/wtf/CurrentTime.cpp", '#include "config.h"\n', '#include "config.h"\n#if defined(PHOREPOC)\n#include <wtf/symbian/PhSymbian.h>\n#endif\n')
 edit("WTF/wtf/CurrentTime.cpp", 'static inline double currentTime()\n{\n    struct timespec ts { };\n    clock_gettime(CLOCK_REALTIME, &ts);',
      'static inline double currentTime()\n{\n#if defined(PHOREPOC)\n    return ph_wall_seconds();\n#endif\n    struct timespec ts { };\n    clock_gettime(CLOCK_REALTIME, &ts);')
-# ARM LLInt (the PinePhone): offlineasm's `globaladdr` exists for Darwin (movw/movt + non-lazy pointer) and Linux (GOT-relative,
+# ARM LLInt: offlineasm's `globaladdr` exists for Darwin (movw/movt + non-lazy pointer) and Linux (GOT-relative,
 # PIC) only. E32 images are not PIC and relocate absolute 32-bit words only (no MOVW/MOVT relocations): a literal word holding the
 # symbol's address, emitted at the next label like Linux's GOT words, loaded pc-relative
 edit("JavaScriptCore/offlineasm/arm.rb", '            # Throw a compiler error everywhere else.\n            $asm.putStr("#else")\n            $asm.putStr("#error Missing globaladdr implementation")',
@@ -62,7 +62,7 @@ edit("JavaScriptCore/llint/LowLevelInterpreter.cpp", '#if OS(LINUX)\n#define OFF
 # libpas (bmalloc headers, ARM32 branch): PAS_ASSERT_IF exists only for Darwin/Linux (upstream); the plain assert says the same
 edit("bmalloc/libpas/src/libpas/pas_utils.h", '#elif PAS_ARM32\n    PAS_ASSERT_IF(true, !"Should not be reached");',
      '#elif PAS_ARM32\n#ifndef PAS_ASSERT_IF   /* PHOREPOC: the first ARM32 use; the later ones follow */\n#define PAS_ASSERT_IF(cond, exp, ...) PAS_ASSERT(exp)\n#endif\n    PAS_ASSERT_IF(true, !"Should not be reached");')
-# ARM JIT (the PinePhone): JSC flushes freshly written code with Linux's cacheflush syscall; ours is the IMB_Range exec call (phsym.cpp)
+# ARM JIT: JSC flushes freshly written code with Linux's cacheflush syscall; ours is the IMB_Range exec call (phsym.cpp)
 edit("JavaScriptCore/assembler/ARMv7Assembler.h", '#elif OS(LINUX)\n        size_t page = pageSize();',
      '#elif defined(PHOREPOC)\n        ph_cache_flush(code, size);\n#elif OS(LINUX)\n        size_t page = pageSize();')
 edit("JavaScriptCore/assembler/ARMv7Assembler.h", '#include <wtf/Vector.h>\n',

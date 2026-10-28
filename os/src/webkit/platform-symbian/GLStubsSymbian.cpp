@@ -6,7 +6,7 @@
  * accelerated compositing off, so there is no GL display, context, fence, texture or composited GraphicsLayer. WebKit's Skia painting
  * code still references the GPU types; these definitions satisfy the link and report "no GPU" wherever a caller can take no for an
  * answer (sharedDisplayIfExists, isSupported, MakeEGL). The rest is unreachable without compositing and stops loudly if ever reached.
- * GPU work (the PinePhone's Mali-400 via our GLES stack) replaces this file, not the callers.
+ * GPU work (a device GPU via our GLES stack) replaces this file, not the callers.
  */
 #include "config.h"
 

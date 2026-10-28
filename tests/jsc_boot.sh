@@ -8,7 +8,7 @@
 #
 # On the host, with the pdk's `ph` on PATH, after `bash build.sh` (x32, in the toolchain container):
 #   PHOREPOC_ADAPTATIONS=<board adaptations>:<tls>:<cxxrt>:<webkit-symbian> PHOREPOC_RUN='<command>' bash tests/jsc_boot.sh
-# PHOREPOC_RUN boots the built ROM on the board (QEMU, VirtualBox ...) and writes its serial log to stdout; it is not part of
+# PHOREPOC_RUN boots the built ROM on the board (QEMU, a virtual machine, a phone ...) and writes its serial log to stdout; it is not part of
 # this repository. BOARD defaults to pc. The script is staged with the pdk's image option -O data=run.js=<file>.
 set -eu
 : "${PHOREPOC_RUN:?set PHOREPOC_RUN to the command that boots the ROM and prints the serial log}"

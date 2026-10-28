@@ -29,7 +29,7 @@ set(CMAKE_THREAD_LIBS_INIT "" CACHE STRING "")
 set(CMAKE_C_FLAGS_INIT "$OSDEF -U__linux__ -U__linux -U__gnu_linux__ -Ulinux -DPHOREPOC=1")
 set(CMAKE_CXX_FLAGS_INIT "$OSDEF -U__linux__ -U__linux -U__gnu_linux__ -Ulinux -DPHOREPOC=1 $CXXINC -fexceptions -frtti -fpermissive")
 TC
-# ARM (the PinePhone): the LLInt + Baseline JIT for ARMv7 Thumb-2 (DFG/FTL later); x32 has no JIT backend upstream -> CLoop
+# ARM: the LLInt + Baseline JIT for ARMv7 Thumb-2 (DFG/FTL later); x32 has no JIT backend upstream -> CLoop
 if [ $ARCH = arm ]; then JITFL="-DENABLE_JIT=ON -DENABLE_C_LOOP=OFF"; else JITFL="-DENABLE_JIT=OFF -DENABLE_C_LOOP=ON"; fi
 if [ ! -f $BLD/build.ninja ]; then
   mkdir -p $BLD; cd $BLD

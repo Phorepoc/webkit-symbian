@@ -21,7 +21,7 @@ CC_H=$W/build/include/$LTRIP/bits/c++config.h
 for m in _GLIBCXX_USE_C99_MATH _GLIBCXX_USE_C99_MATH_TR1 _GLIBCXX_USE_C99_STDLIB _GLIBCXX_USE_C99_INTTYPES _GLIBCXX_USE_C99_STDINT_TR1 _GLIBCXX_USE_C99_FENV_TR1 _GLIBCXX_USE_C99_CTYPE_TR1; do
   upd $CC_H sed "s|^/\* #undef $m \*/|#define $m 1|"   # (c++config.h is in every C++ TU: never rewrite it unchanged)
 done
-# 2a. ARM (the PinePhone): JSCOnly turns on the Capstone disassembler for ARM (JIT dumps only); the WPE tarball has no
+# 2a. ARM: JSCOnly turns on the Capstone disassembler for ARM (JIT dumps only); the WPE tarball has no
 #     Source/ThirdParty/capstone, and we need no dumps
 upd $SRC/Source/cmake/OptionsJSCOnly.cmake sed 's/^if (WTF_CPU_ARM OR WTF_CPU_MIPS)$/if ((WTF_CPU_ARM OR WTF_CPU_MIPS) AND NOT PHOREPOC)/'
 # 2b. keep the generic (non-Linux) memory-footprint/pressure sources: CMake says Linux, the target is not

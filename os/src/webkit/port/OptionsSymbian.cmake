@@ -27,7 +27,7 @@ WEBKIT_OPTION_DEFINE(USE_LIBBACKTRACE "Whether to enable usage of libbacktrace."
 WEBKIT_OPTION_DEFINE(USE_SYSTEM_UNIFDEF "Whether to use a system-provided unifdef" PRIVATE OFF)
 
 # JavaScriptCore: the configuration proven by `jsc` on Phorepoc 
-# ARM (the PinePhone): the assembly LLInt (offlineasm), not CLoop (3M loop iterations 2.8 s -> 2.6 s, phone
+# ARM: the assembly LLInt (offlineasm), not CLoop (3M loop iterations 2.8 s -> 2.6 s, phone
 # boot 525). There is NO JIT on ARM32 in WebKit 2.54: PlatformEnable.h forces ENABLE_JIT 0 for every USE(JSVALUE32_64)
 # build whatever is set here (upstream dropped the 32-bit JIT), so ENABLE_JIT ON below only selects the asm LLInt
 # (ENABLE_C_LOOP follows it); a JIT on the phone = an older WebKit's ARMv7 JIT or an AArch64 userland. x32: CLoop
