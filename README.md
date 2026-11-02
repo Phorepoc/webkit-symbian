@@ -18,7 +18,7 @@ Be warned, a full build takes hours, and each compiler needs about 1.5 GB of RAM
 WebKit needs [cxxrt](https://github.com/Phorepoc/cxxrt) for its C++ library. For https it also needs the
 [tls](https://github.com/Phorepoc/tls) repository, which supplies the certificates the engine trusts. Check out core,
 the [pdk](https://github.com/Phorepoc/pdk), cxxrt, tls and this repository side by side, and run
-`ph source export -a` once. Then build in the toolchain's web image:
+`phe source export -a` once. Then build in the toolchain's web image:
 
 ```sh
 docker run --rm --cpus=6 -v "$PWD/..:/src" -e JOBS=4 -e PHOREPOC_PDK=/src/pdk -e PHOREPOC_CORE=/src/core \
@@ -30,10 +30,10 @@ Add `-e ARCH=arm` for an ARM device. Once that's done, build the Symbian compone
 
 ```sh
 export PHOREPOC_ADAPTATIONS=<device repositories>:<tls>:<cxxrt>:<webkit-symbian>
-ph component build -b myboard phwebtest phebrctl
+phe component build -b myboard phwebtest phebrctl
 ```
 
-For an ARM board, that's `ph component build -b myboard -arch arm phebrctl_arm`. `phebrctl` becomes
+For an ARM board, that's `phe component build -b myboard -arch arm phebrctl_arm`. `phebrctl` becomes
 `browserengine.dll` in the image and replaces the 2010 engine.
 
 ## What's in here

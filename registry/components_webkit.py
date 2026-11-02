@@ -41,8 +41,8 @@ COMPONENTS = {
                       x32_archives=_web("x32", "phwebmain")
                       + [f"thirdparty/x86/cxxrt/{a}.a" for a in ("libphcompat", "libstdc++", "libgcc_eh", "libgcc")]),
     # The BrCtl facade over WebKit, built to the old engine's ROM name browserengine.dll (the 2010 browser, Messaging and Help
-    # load it by name; CreateBrowserControlL = ordinal 1). `ph component build phebrctl` REPLACES the old engine's image
-    # (`ph component build browserengine` restores it). Engine archives: build_webcore.sh phengine + package_web.sh.
+    # load it by name; CreateBrowserControlL = ordinal 1). `phe component build phebrctl` REPLACES the old engine's image
+    # (`phe component build browserengine` restores it). Engine archives: build_webcore.sh phengine + package_web.sh.
     "phebrctl": dict(mmp=os.path.join(OS_ROOT, "src/phebrctl/group/phebrctl.mmp"), rom="browserengine.dll",
                      **{"def": os.path.join(OS_ROOT, "src/phebrctl/eabi/browserengineu.def")},
                      allow_wsd=True, static_ctors=True, rtti=False, defs=["__SOFTFP="],
