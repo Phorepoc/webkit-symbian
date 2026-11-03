@@ -19,7 +19,7 @@ s icu;    bash $r/build_icu.sh | tail -2
 s jsc-configure; CONFIGURE_ONLY=1 bash $r/build_jsc.sh   # writes the CMake toolchain file the dependencies build with
 dl=$(mktemp)   # a failing dependency stops the build here, not at the WebCore configure much later
 s deps;   bash $r/build_webdeps.sh > "$dl" 2>&1 || { tail -40 "$dl"; exit 1; }; grep "^==" "$dl"
-s curl;   bash $r/build_curl_ossl.sh | tail -1
+s curl;   bash $r/build_curl_ossl.sh
 s images; bash $r/build_png_nspsl.sh
 s jsc;    bash $r/build_jsc.sh JavaScriptCore
 s webcore; bash $r/build_webcore.sh; bash $r/build_webcore.sh phwebtest; bash $r/build_webcore.sh phengine

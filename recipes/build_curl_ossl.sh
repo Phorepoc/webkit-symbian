@@ -19,7 +19,7 @@ FL=(-O2 -g0 -U__linux__ -U__linux -DPHOREPOC=1 -I$P/include -iquote $SRC/lib -I$
     -DHAVE_CONFIG_H -DPH_CURL_FILE=1 -DUSE_OPENSSL=1 -DHAVE_OPENSSL_SRP=0 -Werror=implicit-function-declaration -Wno-attributes)
 SOURCES=$(cd $SRC/lib && printf 'include Makefile.inc\nprint:\n\t@echo $(CSOURCES)\n' | make -s -f - print)
 O=$WORK/obj; rm -rf $O; mkdir -p $O $LOG; : > $LOG/curl-ossl.log
-export SRC O; export FLS="${FL[*]}"
+export SRC O W; export FLS="${FL[*]}"
 printf '%s\n' $SOURCES | xargs -P $J -I{} sh -c 'b=$(echo {} | tr / _); cd $SRC/lib && $W/bin/pp-gcc $FLS -c {} -o $O/${b%.c}.o 2>>$O/err.log || echo "FAIL {}" >> $O/fail'
 if [ -s $O/fail ]; then cat $O/fail; grep -m20 "error" $O/err.log; exit 1; fi
 rm -f $P/lib/libcurl.a; ${CROSS}ar rcs $P/lib/libcurl.a $O/*.o; rm -rf $P/include/curl; cp -r $SRC/include/curl $P/include/
