@@ -29,6 +29,10 @@ set(CMAKE_THREAD_LIBS_INIT "" CACHE STRING "")
 set(CMAKE_C_FLAGS_INIT "$OSDEF -U__linux__ -U__linux -U__gnu_linux__ -Ulinux -DPHOREPOC=1")
 set(CMAKE_CXX_FLAGS_INIT "$OSDEF -U__linux__ -U__linux -U__gnu_linux__ -Ulinux -DPHOREPOC=1 $CXXINC -fexceptions -frtti -fpermissive")
 TC
+if [ $ARCH = arm ]; then   # the bare-metal link has no libdl (x86_64's is an empty stub); dlopen comes from libdl.dll at the registry link
+  echo 'set(CMAKE_DL_LIBS "")' > $V/ph-nodl.cmake
+  echo "set(CMAKE_PROJECT_INCLUDE $V/ph-nodl.cmake)   # runs after project(): Platform/Linux sets CMAKE_DL_LIBS=dl" >> $TC
+fi
 # ARM: the LLInt + Baseline JIT for ARMv7 Thumb-2 (DFG/FTL later); x32 has no JIT backend upstream -> CLoop
 if [ $ARCH = arm ]; then JITFL="-DENABLE_JIT=ON -DENABLE_C_LOOP=OFF"; else JITFL="-DENABLE_JIT=OFF -DENABLE_C_LOOP=ON"; fi
 if [ ! -f $BLD/build.ninja ]; then
