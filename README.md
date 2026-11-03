@@ -1,6 +1,6 @@
 # webkit-symbian
 
-This is a modern [WebKit](https://webkit.org) running on Symbian. It's WPE WebKit 2.54.1, with current HTML, CSS and
+This is a modern [WebKit](https://webkit.org) running on Phorepoc OS. It's WPE WebKit 2.54.1, with current HTML, CSS and
 JavaScript and TLS 1.3, sitting behind the browser control API Symbian apps have used since 2010. Apps that show web
 content, like Messaging's HTML viewer or Help, keep working unchanged and draw with the new engine.
 
@@ -8,7 +8,7 @@ The engine is ready to embed, but the new browser app on top of it hasn't been d
 browser's interface forward.
 
 We don't keep a copy of WebKit here. The recipes download the release named in `webkit.lock` and the libraries it
-needs, check each one against its SHA-256, and build them for Symbian. This repository holds the port itself and the
+needs, check each one against its SHA-256, and build them for Phorepoc OS. This repository holds the port itself and the
 recipes.
 
 ## Building
@@ -26,7 +26,7 @@ docker run --rm --cpus=6 -v "$PWD/..:/src" -e JOBS=4 -e PHOREPOC_PDK=/src/pdk -e
     bash -c 'bash /src/cxxrt/build.sh && bash /src/webkit-symbian/build.sh'
 ```
 
-Add `-e ARCH=arm` for an ARM device. Once that's done, build the Symbian components:
+Add `-e ARCH=arm` for an ARM device. Once that's done, build the components:
 
 ```sh
 export PHOREPOC_ADAPTATIONS=<device repositories>:<tls>:<cxxrt>:<webkit-symbian>
@@ -38,9 +38,9 @@ For an ARM board, that's `phe component build -b myboard -arch arm phebrctl_arm`
 
 ## What's in here
 
-- `os/src/webkit/port/` is the Symbian port's build setup. JavaScriptCore runs with a JIT on ARM and an interpreter on
+- `os/src/webkit/port/` is the port's build setup. JavaScriptCore runs with a JIT on ARM and an interpreter on
   the PC, and pages are drawn by Skia on the CPU.
-- `os/src/webkit/symbian/` and `platform-symbian/` connect WebKit to Symbian's memory, fonts, file types and clipboard.
+- `os/src/webkit/symbian/` and `platform-symbian/` connect WebKit to the system's memory, fonts, file types and clipboard.
 - `os/src/webkit/webcore/` loads pages over curl, using the certificates in the ROM.
 - `os/src/webkit/phwebview/` runs the engine in its own thread inside the app, and `os/src/phebrctl/` puts the 2010
   browser control API in front of it.
