@@ -28,5 +28,6 @@ fi
 [ -n "${CONFIGURE_ONLY:-}" ] && exit 0
 T=${1:-WebCore}
 cd $BLD && ninja -k 0 -j${JOBS:-4} $T > $LOG/wc-build-$T.log 2>&1; rc=$?; echo "ninja exit $rc"
-echo "$(grep -c "error:" $LOG/wc-build-$T.log) errors"
+echo "$(grep -c "error:" $LOG/wc-build-$T.log || true) errors"
+[ $rc = 0 ] || { grep -m 20 -B2 -A6 "error:\|^FAILED:\|undefined reference" $LOG/wc-build-$T.log | cut -c1-300; tail -15 $LOG/wc-build-$T.log | cut -c1-300; }
 exit $rc   # ninja's status (so `build_webcore.sh && package_web.sh` chains)
