@@ -42,5 +42,7 @@ fi
 # build-tree executables (LLIntSettingsExtractor, jsc) are only READ (offsets) or re-linked by the E32 emitter: link freely, unresolved = ignored
 cmake -S $SRC -B $BLD -DCMAKE_EXE_LINKER_FLAGS="-nostdlib -nostartfiles -static -Wl,--unresolved-symbols=ignore-all -Wl,--allow-multiple-definition -Wl,-e,main -Wl,--defsym,__dso_handle=0" > /dev/null 2>&1
 [ -n "${CONFIGURE_ONLY:-}" ] && exit 0
-cd $BLD && ninja -k 0 -j${JOBS:-4} ${1:-WTF} > $LOG/jsc-build-${1:-WTF}.log 2>&1; echo "ninja exit $?"
-grep -c "error:" $LOG/jsc-build-${1:-WTF}.log
+cd $BLD && ninja -k 0 -j${JOBS:-4} ${1:-WTF} > $LOG/jsc-build-${1:-WTF}.log 2>&1; rc=$?; echo "ninja exit $rc"
+echo "$(grep -c "error:" $LOG/jsc-build-${1:-WTF}.log || true) errors"
+[ $rc = 0 ] || grep -m 20 -B2 -A6 "error:" $LOG/jsc-build-${1:-WTF}.log | cut -c1-300
+exit $rc   # ninja's status (so the callers stop at a failed build)

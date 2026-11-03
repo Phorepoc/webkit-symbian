@@ -44,11 +44,12 @@ b_harfbuzz() {
   rm -f $P/lib/libharfbuzz-icu.a; ${CROSS}ar rcs $P/lib/libharfbuzz-icu.a $O/hb-icu.o
   cp $S/hb.h $S/hb-*.h $P/include/harfbuzz/; rm -f $P/include/harfbuzz/hb-*-private.h
 }
+# getentropy: Open C has none (check_function_exists only compiles a declaration-less probe here); libxml2 then seeds its hash from the clock
 b_libxml2() {
   unpack libxml2 libxml2-2.13.5
   cmake -S $V/wd/libxml2-2.13.5 -B $V/wd/b-libxml2 $CM -DLIBXML2_WITH_PYTHON=OFF -DLIBXML2_WITH_ICONV=OFF -DLIBXML2_WITH_ZLIB=OFF \
     -DLIBXML2_WITH_LZMA=OFF -DLIBXML2_WITH_HTTP=OFF -DLIBXML2_WITH_FTP=OFF -DLIBXML2_WITH_TESTS=OFF -DLIBXML2_WITH_PROGRAMS=OFF \
-    -DLIBXML2_WITH_MODULES=OFF -DLIBXML2_WITH_ICU=OFF -DLIBXML2_WITH_THREADS=ON > $LOG/libxml2.log 2>&1 \
+    -DLIBXML2_WITH_MODULES=OFF -DLIBXML2_WITH_ICU=OFF -DLIBXML2_WITH_THREADS=ON -DHAVE_GETENTROPY=0 > $LOG/libxml2.log 2>&1 \
     && ninja -C $V/wd/b-libxml2 -j$J install >> $LOG/libxml2.log 2>&1
 }
 b_libxslt() {
@@ -83,6 +84,7 @@ b_libjpegturbo() {
   cp $B/libjpeg.a $P/lib/libjpeg.a && cp $B/jconfig.h $S/jpeglib.h $S/jmorecfg.h $S/jerror.h $P/include/
 }
 # OpenSSL 3.5.4 : WebCrypto's backend (USE(OPENSSL), the PlayStation port's path) and the browser curl's TLS.
+# no-quic: the QUIC stack needs socketpair, which Open C lacks (the browser speaks TLS over TCP through curl).
 # linux-x32 target with the pure Open C compiler, no asm/threads-free features/modules/engines; entropy = the kernel CSPRNG (openssl_patch.py)
 b_openssl() {
   local S=$V/wd/openssl-3.5.4
@@ -90,7 +92,7 @@ b_openssl() {
   python3 $HERE/openssl_patch.py $S || return 1
   cd $S
   [ -f Makefile ] || CC=$W/bin/pp-gcc AR=${CROSS}ar RANLIB=${CROSS}ranlib ./Configure $OSSL_TARGET no-asm no-shared no-dso no-async no-engine no-module \
-     no-tests no-apps no-docs no-afalgeng no-ui-console no-secure-memory no-uplink no-filenames -U__linux__ -U__linux -DPHOREPOC=1 -DNO_SYSLOG \
+     no-tests no-apps no-docs no-afalgeng no-ui-console no-secure-memory no-uplink no-filenames no-quic -U__linux__ -U__linux -DPHOREPOC=1 -DNO_SYSLOG \
      --prefix=$P/openssl > $LOG/openssl.log 2>&1 || { cd - >/dev/null; return 1; }
   make -j$J build_libs >> $LOG/openssl.log 2>&1 || { cd - >/dev/null; return 1; }
   cp libcrypto.a libssl.a $P/lib/ && mkdir -p $P/include/openssl && cp include/openssl/*.h $P/include/openssl/; cd - >/dev/null
