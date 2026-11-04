@@ -59,6 +59,7 @@ typedef struct PhViewState {
     int scrollX, scrollY;
     int contentW, contentH;
     int focusKind;
+    int zoomPermille;   /* view pixels per CSS pixel x 1000; scroll and content sizes are in view pixels at this zoom */
 } PhViewState;
 
 /* the engine thread: runs until ph_eng_quit. Returns 0 on a clean quit, else an error code. */
@@ -78,7 +79,8 @@ void ph_eng_set_useragent(const unsigned short* s, int len);   /* the User-Agent
 void ph_eng_load(int view, const unsigned short* url, int len);
 void ph_eng_cmd(int view, int cmd);
 void ph_eng_pointer(int view, int type, int x, int y);
-void ph_eng_scroll(int view, int dx, int dy);              /* relative, content pixels */
+void ph_eng_scroll(int view, int dx, int dy);              /* relative, view pixels */
+void ph_eng_zoom(int view, int permille, int cx, int cy);  /* absolute zoom about the view point (cx, cy); clamped to [fit width, page maximum] */
 void ph_eng_key(int view, int winKey, int unicode, int down);
 void ph_eng_setting(int view, int id, int value);          /* PH_SET_* */
 enum { PH_SET_SCRIPT = 0, PH_SET_IMAGES = 1, PH_SET_FONTSCALE = 2, PH_SET_COOKIES = 3 };

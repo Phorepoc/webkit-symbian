@@ -366,7 +366,7 @@ void A_get_state(PheView v, PheViewState* out)
 	out->scroll_y = st.scrollY;
 	out->content_w = st.contentW;
 	out->content_h = st.contentH;
-	out->zoom_permille = 1000;
+	out->zoom_permille = st.zoomPermille > 0 ? st.zoomPermille : 1000;
 	}
 int A_get_str(PheView v, int which, unsigned short* buf, int cap)
 	{
@@ -429,7 +429,7 @@ int A_poll(PheView v, PheEvent* out)
 	}
 void A_dialog_reply(PheView, unsigned, int, const unsigned short*, int, const unsigned short*, int) {}
 void A_scroll(PheView v, int dx, int dy) { ph_eng_scroll(v, dx, dy); }
-void A_zoom(PheView, int, int, int) {}
+void A_zoom(PheView v, int permille, int cx, int cy) { ph_eng_zoom(v, permille, cx, cy); }
 void A_pointer(PheView v, int type, int x, int y)
 	{
 	switch (type)
@@ -512,8 +512,8 @@ void A_download_cancel(PheView, unsigned) {}
 void A_clear_data(int) {}
 
 // What this engine does today: script (JavaScriptCore, CLoop or JIT), TLS 1.3 (BoringSSL-free OpenSSL under curl), a snapshot for the
-// tab grid. Not yet: find, zoom (the engine has no page-zoom call), downloads, private views, suspend, session state, reflow.
-const unsigned KCaps = PHE_CAP_SCRIPT | PHE_CAP_TLS13 | PHE_CAP_SNAPSHOT;
+// tab grid, zoom (page scale + the meta viewport; the frontend pinches / double-taps). Not yet: find, downloads, private views, suspend, session state, reflow.
+const unsigned KCaps = PHE_CAP_SCRIPT | PHE_CAP_TLS13 | PHE_CAP_SNAPSHOT | PHE_CAP_ZOOM;
 
 const PheWebEngineApi KApi =
 	{

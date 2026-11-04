@@ -46,7 +46,9 @@
 #include <WebCore/ResourceResponse.h>
 #include <wtf/MonotonicTime.h>
 #include <wtf/RunLoop.h>
+#include <WebCore/Document.h>
 #include <WebCore/GraphicsContextSkia.h>
+#include <WebCore/ViewportArguments.h>
 #include <WebCore/LocalFrame.h>
 #include <WebCore/LocalFrameInlines.h>
 #include <WebCore/LocalFrameView.h>
@@ -66,6 +68,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <wtf/MainThread.h>
+#include <cmath>
 #include <deque>
 #include <map>
 #include <string>
@@ -113,7 +116,7 @@ volatile int gQuit;
 
 constexpr int kTextMax = 4096;
 struct Cmd {
-    enum Type { Create, Destroy, Resize, Visible, Load, Command, Pointer, Scroll, Key, Setting, SetIap } type;
+    enum Type { Create, Destroy, Resize, Visible, Load, Command, Pointer, Scroll, Key, Setting, SetIap, Zoom } type;
     int view;
     int a, b, c;
     int textLen;
@@ -205,6 +208,16 @@ struct PhView {
     String requestedUrl;       // the last URL a load was started for
     bool failed { false };     // that load failed finally (no retries left): Reload / Try again retries it, not the older document
     MonotonicTime retryAt;
+    // page scale + viewport (mobile model): the page lays out at `layoutW` CSS px (meta viewport, else 980) in a fixed layout and is painted
+    // scaled by `zoom` (view pixels per CSS pixel); the frame view's visible size is the view size in CSS pixels (width / zoom)
+    float zoom { 1 };
+    float initialZoom { 1 };
+    float minScale { 0.25f }, maxScale { 5 };
+    int layoutW { 0 };
+    bool explicitInitial { false };   // the page's meta viewport sets initial-scale: no shrink-to-fit
+    bool userZoomed { false };        // the frontend zoomed (pinch / double-tap): the engine stops fitting
+    bool viewportDirty { true };      // a new document: re-derive the viewport
+    ViewportArguments vpArgs;
 };
 
 std::vector<PhView*> gViews;
@@ -391,6 +404,7 @@ void createView(const Cmd& cmd)
     }
     frame->setView(LocalFrameView::create(*frame));
     frame->init();
+    v->layoutW = v->width;
     frame->view()->resize(IntSize(v->width, v->height));
     // an active, focused page: focus traversal (Tab / arrows), the caret and :focus styling need it
     page->focusController().setActive(true);
@@ -424,6 +438,73 @@ void destroyView(int id)
 }
 
 LocalFrame* mainFrame(PhView& v) { return v.page ? v.page->localMainFrame() : nullptr; }
+
+int visibleW(const PhView& v) { return std::max(1, static_cast<int>(std::ceil(v.width / v.zoom))); }
+int visibleH(const PhView& v) { return std::max(1, static_cast<int>(std::ceil(v.height / v.zoom))); }
+
+// the frame view for the current view size, layout width and zoom
+void applyGeometry(PhView& v)
+{
+    RefPtr frame = mainFrame(v);
+    RefPtr view = frame ? frame->view() : nullptr;
+    if (!view)
+        return;
+    int vw = visibleW(v), vh = visibleH(v);
+    int lw = v.layoutW > 0 ? v.layoutW : vw;
+    view->setUseFixedLayout(true);
+    view->setFixedLayoutSize(IntSize(lw, vh));
+    view->resize(IntSize(vw, vh));
+    v.dirty = true;
+}
+
+// the lowest zoom the user may reach: the content width fits the view (never below the page's / the default minimum scale)
+float fitZoom(PhView& v)
+{
+    RefPtr frame = mainFrame(v);
+    RefPtr view = frame ? frame->view() : nullptr;
+    int cw = std::max(view ? view->contentsWidth() : 0, std::max(v.layoutW, 1));
+    return std::max(v.minScale, static_cast<float>(v.width) / cw);
+}
+
+// meta viewport (width, initial / minimum / maximum scale), else a 980 px layout shown at the scale that fits the view. Text, image and media
+// documents have no layout of their own to shrink: they use the device width.
+void applyViewport(PhView& v)
+{
+    RefPtr frame = mainFrame(v);
+    RefPtr document = frame ? frame->document() : nullptr;
+    ViewportArguments args(ViewportArguments::Type::Implicit);
+    if (document) {
+        args = document->viewportArguments();
+        if (document->isTextDocument() || document->isImageDocument() || document->isMediaDocument() || document->isPluginDocument()) {
+            args = ViewportArguments(ViewportArguments::Type::ViewportMeta);
+            args.width = ViewportArguments::ValueDeviceWidth;
+        }
+    }
+    v.vpArgs = args;
+    ViewportAttributes a = computeViewportAttributes(args, 980, v.width, v.height, 1.0f, IntSize(v.width, v.height));
+    v.layoutW = std::max(1, static_cast<int>(std::lround(a.layoutSize.width())));
+    v.minScale = std::max(0.05f, a.minimumScale);
+    v.maxScale = std::max(v.minScale, a.maximumScale);
+    v.initialZoom = a.initialScale > 0 ? a.initialScale : static_cast<float>(v.width) / 980;
+    v.explicitInitial = args.zoom != ViewportArguments::ValueAuto;
+    v.zoom = v.userZoomed ? std::clamp(v.zoom, v.minScale, v.maxScale) : v.initialZoom;
+    applyGeometry(v);
+    ph_serialf("phengine: viewport view %d: layout %d px, initial scale %d/1000, min %d, max %d (meta %s)", v.id, v.layoutW,
+        static_cast<int>(v.initialZoom * 1000), static_cast<int>(v.minScale * 1000), static_cast<int>(v.maxScale * 1000),
+        args.type == ViewportArguments::Type::ViewportMeta ? "yes" : "no");
+}
+
+// shrink-to-fit: a page wider than its layout viewport is shown at the scale where it fits (unless the page or the user chose a scale)
+void autoFit(PhView& v)
+{
+    if (v.userZoomed || v.explicitInitial)
+        return;
+    float target = std::clamp(std::min(v.initialZoom, fitZoom(v)), v.minScale, v.maxScale);
+    if (std::fabs(target - v.zoom) > 0.004f) {
+        v.zoom = target;
+        applyGeometry(v);
+    }
+}
 
 void loadUrl(PhView& v, const String& url, bool retry = false)
 {
@@ -502,14 +583,40 @@ void scrollBy(PhView& v, int dx, int dy)
     RefPtr view = frame ? frame->view() : nullptr;
     if (!view)
         return;
+    // dx, dy are view pixels; the scroll position is in CSS pixels
+    auto css = [&](int d) { return d == 0 ? 0 : (std::abs(d) < v.zoom ? (d < 0 ? -1 : 1) : static_cast<int>(std::lround(d / v.zoom))); };
     IntPoint p = view->scrollPosition();
-    int maxX = std::max(0, view->contentsWidth() - v.width);
-    int maxY = std::max(0, view->contentsHeight() - v.height);
-    IntPoint q(std::clamp(p.x() + dx, 0, maxX), std::clamp(p.y() + dy, 0, maxY));
+    int maxX = std::max(0, view->contentsWidth() - visibleW(v));
+    int maxY = std::max(0, view->contentsHeight() - visibleH(v));
+    IntPoint q(std::clamp(p.x() + css(dx), 0, maxX), std::clamp(p.y() + css(dy), 0, maxY));
     if (q != p) {
         view->setScrollPosition(q);
         v.dirty = true;
     }
+}
+
+// zoom to `permille` about the view point (cx, cy): the CSS point under it stays under it
+void zoomTo(PhView& v, int permille, int cx, int cy)
+{
+    RefPtr frame = mainFrame(v);
+    RefPtr view = frame ? frame->view() : nullptr;
+    if (!view || permille <= 0)
+        return;
+    float lo = fitZoom(v), hi = v.maxScale;
+    float nz = std::clamp(permille / 1000.0f, lo, std::max(lo, hi));
+    if (std::fabs(nz - v.zoom) < 0.004f)
+        return;
+    IntPoint sp = view->scrollPosition();
+    float px = sp.x() + cx / v.zoom, py = sp.y() + cy / v.zoom;   // the CSS point under the focus
+    v.zoom = nz;
+    v.userZoomed = true;
+    applyGeometry(v);
+    view->updateLayoutAndStyleIfNeededRecursive();
+    int maxX = std::max(0, view->contentsWidth() - visibleW(v));
+    int maxY = std::max(0, view->contentsHeight() - visibleH(v));
+    view->setScrollPosition(IntPoint(std::clamp(static_cast<int>(std::lround(px - cx / nz)), 0, maxX), std::clamp(static_cast<int>(std::lround(py - cy / nz)), 0, maxY)));
+    v.dirty = true;
+    ph_serialf("phengine: zoom view %d -> %d/1000", v.id, static_cast<int>(nz * 1000));
 }
 
 void pointer(PhView& v, int type, int x, int y)
@@ -518,7 +625,7 @@ void pointer(PhView& v, int type, int x, int y)
     if (!frame)
         return;
     PlatformEvent::Type t = type == PH_PTR_DOWN ? PlatformEvent::Type::MousePressed : type == PH_PTR_UP ? PlatformEvent::Type::MouseReleased : PlatformEvent::Type::MouseMoved;
-    DoublePoint pos(x, y);
+    DoublePoint pos(x / v.zoom, y / v.zoom);   // view pixels -> CSS pixels
     PlatformMouseEvent event(pos, pos, type == PH_PTR_MOVE ? MouseButton::None : MouseButton::Left, t, type == PH_PTR_MOVE ? 0 : 1, { }, MonotonicTime::now(), 0, SyntheticClickType::NoTap, MouseEventInputSource::UserDriven);
     if (type == PH_PTR_DOWN)
         frame->eventHandler().handleMousePressEvent(event);
@@ -659,8 +766,7 @@ void resizeView(PhView& v, int w, int h)
     v.height = h;
     v.bitmap.reset();
     v.bitmap.allocN32Pixels(w, h);
-    if (RefPtr frame = mainFrame(v))
-        frame->view()->resize(IntSize(w, h));
+    applyViewport(v);   // the layout width and the fit follow the view size (rotation)
     v.dirty = true;
 }
 
@@ -707,6 +813,7 @@ void runCommands()
         case Cmd::Command: command(*v, cmd.a); break;
         case Cmd::Pointer: pointer(*v, cmd.a, cmd.b, cmd.c); break;
         case Cmd::Scroll: scrollBy(*v, cmd.a, cmd.b); break;
+        case Cmd::Zoom: zoomTo(*v, cmd.a, cmd.b, cmd.c); break;
         case Cmd::Key: key(*v, cmd.a, cmd.b, cmd.c); break;
         case Cmd::Setting: setting(*v, cmd.a, cmd.b); break;
         default: break;
@@ -739,6 +846,8 @@ void trackView(PhView& v)
             setStr(v.id, PH_STR_URL, url);
             v.lastTitle = String();
             v.sentLayout = false;
+            v.viewportDirty = true;
+            v.userZoomed = false;
             v.dirty = true;
             post(v.id, PH_EV_COMMIT);
             updateHistoryState(v);
@@ -746,6 +855,11 @@ void trackView(PhView& v)
     }
     RefPtr view = frame->view();
     if (document && view) {
+        if (v.viewportDirty || document->viewportArguments() != v.vpArgs) {   // a new document, or its meta viewport arrived / changed
+            v.viewportDirty = false;
+            applyViewport(v);
+        }
+        autoFit(v);
         if (!v.sentLayout && v.lastActive && document->documentElement() && view->didFirstLayout() && view->isVisuallyNonEmpty()) {
             v.sentLayout = true;
             v.dirty = true;
@@ -776,10 +890,12 @@ void trackView(PhView& v)
     st.progress = v.lastProgress < 0 ? 0 : v.lastProgress;
     st.focusKind = v.focusKind;
     if (view) {
-        st.scrollX = view->scrollPosition().x();
-        st.scrollY = view->scrollPosition().y();
-        st.contentW = view->contentsWidth();
-        st.contentH = view->contentsHeight();
+        // view pixels (the zoom applied), as the seam says
+        st.scrollX = static_cast<int>(std::lround(view->scrollPosition().x() * v.zoom));
+        st.scrollY = static_cast<int>(std::lround(view->scrollPosition().y() * v.zoom));
+        st.contentW = static_cast<int>(std::ceil(view->contentsWidth() * v.zoom));
+        st.contentH = static_cast<int>(std::ceil(view->contentsHeight() * v.zoom));
+        st.zoomPermille = static_cast<int>(std::lround(v.zoom * 1000));
     }
     pthread_mutex_lock(&gLock);
     auto it = gShared.find(v.id);
@@ -799,7 +915,8 @@ void paintView(PhView& v)
     {
         SkCanvas canvas(v.bitmap);
         GraphicsContextSkia context(canvas, RenderingMode::Unaccelerated, RenderingPurpose::Unspecified);
-        view->paint(context, IntRect(0, 0, v.width, v.height));
+        context.scale(FloatSize(v.zoom, v.zoom));
+        view->paint(context, IntRect(0, 0, visibleW(v), visibleH(v)));
     }
     v.lastPainted = view->scrollPosition();
     pthread_mutex_lock(&gLock);
@@ -992,6 +1109,16 @@ void ph_eng_scroll(int view, int dx, int dy)
     initCmd(c, Cmd::Scroll, view);
     c.a = dx;
     c.b = dy;
+    enqueue(c);
+}
+
+void ph_eng_zoom(int view, int permille, int cx, int cy)
+{
+    Cmd c;
+    initCmd(c, Cmd::Zoom, view);
+    c.a = permille;
+    c.b = cx;
+    c.c = cy;
     enqueue(c);
 }
 

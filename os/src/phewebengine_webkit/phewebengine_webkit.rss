@@ -20,7 +20,7 @@ RESOURCE REGISTRY_INFO theInfo
 					implementation_uid = 0xE7016B10;
 					version_no = 1;
 					display_name = "WebKit";
-					default_data = "caps=script,tls13,snapshot;api=1";
+					default_data = "caps=script,tls13,snapshot,zoom;api=1";
 					opaque_data = "";
 					}
 				};
