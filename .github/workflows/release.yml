@@ -43,6 +43,8 @@ jobs:
   package:
     needs: version
     uses: Phorepoc/pdk/.github/workflows/package.yml@main
+    with:
+      version: ${{ needs.version.outputs.version }}
     permissions:
       contents: read
       packages: read

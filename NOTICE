@@ -38,8 +38,12 @@ Not part of this repository, fetched and built at build time (sources.lock), eac
 - libnspsl 0.1.7 (NetSurf's public suffix list library; the Mozilla Public Suffix List, MPL-2.0, is compiled into it): MIT (libnspsl-MIT.txt)
 - Skia, ANGLE headers, and the other libraries bundled in the WebKit tree: each under the licence of its directory in the
   WebKit release (Skia: BSD 3-clause, Skia-BSD-3-Clause.txt)
-- the CA bundle (Mozilla's roots as curl publishes them, MPL-2.0 data) is the tls repository's (recipes/fetch_cacert.sh) and
-  is shipped with the OS image, not linked into code
+- the CA bundle (Mozilla's roots as curl publishes them, MPL-2.0 data; MPL-2.0.txt) is the tls repository's
+  (recipes/fetch_cacert.sh); the engine SIS carries a copy as \resource\ssl\ca-bundle.crt, as data, not linked into code.
+  MPL-2.0.txt also covers the Public Suffix List compiled into libnspsl.
+
+The engine SIS installs these licence texts, this NOTICE and SOURCE-OFFER.txt (where to get the corresponding source, and
+the written offer) in \resource\phweb\licences\.
 - mbedTLS (Apache-2.0 option), used only by the alternative TLS-only layer (*MbedTLS.cpp), is the tls repository's
 
 The Symbian OS and Open C headers the code compiles against come from the Phorepoc core repository (EPL-1.0) and are not copied here. The 2010 browser control interface (BrCtlInterface.h) that

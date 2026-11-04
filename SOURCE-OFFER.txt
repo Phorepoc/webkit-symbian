@@ -1,0 +1,30 @@
+WebKit web engine for Phorepoc -- licence notice and source offer
+
+This package contains the WebKit web engine (a plug-in DLL for the Phorepoc browser) built from WPE WebKit 2.54.1 and the
+libraries it uses. WebKit is copyright Apple Inc. and the other WebKit contributors. WebCore, JavaScriptCore and parts of
+WTF are licensed under the GNU Lesser General Public License version 2.1 (LGPL-2.1); Apple's files, WTF and bmalloc under
+a BSD 2-clause licence. The other libraries in the DLL and their licences: ICU (Unicode License v3), curl (curl licence),
+OpenSSL (Apache-2.0), SQLite (public domain), FreeType (FreeType License), HarfBuzz (MIT), libxml2/libxslt (MIT),
+libwebp (BSD 3-clause), libjpeg-turbo (IJG/BSD), libpng (libpng 2.0), zlib (zlib), Skia (BSD 3-clause), libnspsl (MIT).
+The CA certificate bundle is Mozilla's root list as published by curl, under the Mozilla Public License 2.0.
+All licence texts are installed with this package in \resource\phweb\licences\ (NOTICE lists which file covers what).
+
+The engine is a separate dynamic library loaded by the browser as a plug-in: you can replace it with your own build
+(modified or not) of the same engine and the browser keeps working. The archives the DLL is linked from are left by the
+build (see build.sh in the source below), so a modified WebKit can be relinked into the same DLL.
+
+Corresponding source, available to anyone who has this package, for at least three years after the release you installed
+it from:
+
+  1. The unmodified upstream sources, each pinned by SHA-256 in sources.lock and webkit.lock of the repository below
+     (WPE WebKit 2.54.1 from https://wpewebkit.org/releases/, WebKit's curl backend from the same tag of
+     https://github.com/WebKit/WebKit, and every library listed above).
+  2. Our changes to them, our own files, and the scripts that fetch, patch, build and package the engine:
+       https://github.com/Phorepoc/webkit-symbian   (the release tag of this package)
+     with the toolchain images and build tools in https://github.com/Phorepoc/toolchain and https://github.com/Phorepoc/pdk.
+
+Written offer: if the links above are no longer available, send a request to the address given on the Phorepoc
+organisation page https://github.com/Phorepoc and we will send you the corresponding source on a medium of your choice
+for the cost of the medium.
+
+WebKit is a trademark of Apple Inc. and is used here only to name the software.
