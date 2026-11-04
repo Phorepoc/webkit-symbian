@@ -78,3 +78,10 @@ COMPONENTS = {
                                     arm_archives=_web("arm", "phengine")
                                     + [f"thirdparty/arm/cxxrt/{a}.a" for a in ("libphcompat", "libstdc++")]),
 }
+
+# The engine plug-in ships only as a SIS, so it is LOADED FROM RAM, where the loader validates each image (the export
+# directory inside the code part; x32: the RIP-relative data references as relocations). `sis` lays it out that way --
+# without it the installer's RLibrary::GetInfoFromHeader answers KErrCorrupt and the install fails with -10258
+# (KErrWrongHeaderFormat; found installing v0.1.0 on the PC image, 2026-11-04). The other keys are ROM components.
+for _k in ("phewebengine_webkit", "phewebengine_webkit_arm"):
+    COMPONENTS[_k].setdefault("sis", True)
