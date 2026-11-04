@@ -202,6 +202,8 @@ struct PhView {
     // a first connect right after the access point came up often fails once (curl 6/7/28/35/56): retry the UI's load quietly
     int retriesLeft { 0 };
     String retryUrl;
+    String requestedUrl;       // the last URL a load was started for
+    bool failed { false };     // that load failed finally (no retries left): Reload / Try again retries it, not the older document
     MonotonicTime retryAt;
 };
 
@@ -334,8 +336,10 @@ private:
     }
     void fail(const ResourceError& error)
     {
-        if (PhView* v = findView(m_view))
+        if (PhView* v = findView(m_view)) {
             v->loading = false;
+            v->failed = true;
+        }
         setStr(m_view, PH_STR_ERROR, error.localizedDescription());
         ph_serialf("phengine: load failed: %d %s", error.errorCode(), error.localizedDescription().utf8().data());
         post(m_view, PH_EV_FAILED, error.errorCode(), error.isTimeout() ? 0 : 1);
@@ -431,6 +435,7 @@ void loadUrl(PhView& v, const String& url, bool retry = false)
         u = URL { makeString("http://"_s, url) };
     v.loading = true;
     v.stopRequested = false;
+    v.requestedUrl = u.string();
     v.sentLayout = false;
     v.lastProgress = -1;
     setStr(v.id, PH_STR_URL, u.string());
@@ -611,7 +616,8 @@ void command(PhView& v, int cmd)
         }
         break;
     case PH_CMD_RELOAD: {
-        String url = frame->document() ? frame->document()->url().string() : String();
+        // after a failed load the document is still the previous page: Reload (the frontend's Try again) retries the failed URL
+        String url = v.failed && !v.requestedUrl.isEmpty() ? v.requestedUrl : (frame->document() ? frame->document()->url().string() : String());
         if (!url.isEmpty())
             loadUrl(v, url);
         break;
@@ -729,6 +735,7 @@ void trackView(PhView& v)
                 v.history.push_back(url);
                 v.historyIndex = static_cast<int>(v.history.size()) - 1;
             }
+            v.failed = false;
             setStr(v.id, PH_STR_URL, url);
             v.lastTitle = String();
             v.sentLayout = false;
