@@ -64,7 +64,12 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ needs.version.outputs.version }}
         run: |
-          gh release view "$VERSION" -R "${{ github.repository }}" >/dev/null 2>&1 ||
+          # an existing release is only topped up by a run of its own commit, never overwritten from another one
+          if gh release view "$VERSION" -R "${{ github.repository }}" >/dev/null 2>&1; then
+            at=$(gh api "repos/${{ github.repository }}/commits/$VERSION" -q .sha)
+            [ "$at" = "${{ github.sha }}" ] || { echo "::error::$VERSION is already released from $at, not ${{ github.sha }}: nothing uploaded"; exit 1; }
+          else
             gh release create "$VERSION" -R "${{ github.repository }}" --target "${{ github.sha }}" --title "$VERSION" \
               --notes-file notes.md
+          fi
           gh release upload "$VERSION" out/* -R "${{ github.repository }}" --clobber
