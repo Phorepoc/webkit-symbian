@@ -116,7 +116,7 @@ TBool StartWlanIapL(TDes8& aName)
         CleanupStack::PopAndDestroy(v);
         }
     CleanupStack::PopAndDestroy(db);
-    RDebug::Printf("PH: [phebrctl] WLAN IAP %u '%S'", iap, &iapName);
+    { TBuf8<64> n8; Narrow(iapName, n8); RDebug::Printf("PH: [phebrctl] WLAN IAP %u '%S'", iap, &n8); }   // %S is the 8-bit descriptor of RDebug::Printf: a 16-bit one printed only its first character
     if (!iap)
         return EFalse;
     if (gAttachedOpen)
@@ -220,7 +220,7 @@ TBool ActiveIapName(TDes8& aName)
     if (gAttached.GetDesSetting(KIapName, iapName) != KErrNone || iapName.Length() == 0)
         return EFalse;
     Narrow(iapName, aName);
-    RDebug::Printf("PH: [phebrctl] active IAP '%S'", &iapName);
+    RDebug::Printf("PH: [phebrctl] active IAP '%S'", &aName);
     return aName.Length() > 0;
     }
 
