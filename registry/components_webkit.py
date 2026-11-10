@@ -50,10 +50,9 @@ COMPONENTS = {
                      + [f"thirdparty/x86/cxxrt/{a}.a" for a in ("libphcompat", "libstdc++", "libgcc_eh", "libgcc")]),
     # The WebKit engine as a Phorepoc web-engine package: an ECom plug-in (interface 0xE7016B01, webengine repository) over the
     # same engine archives as phebrctl. The browser frontend discovers and loads it. It ships as this repository's SIS, installed
-    # through the Catalogue (no image carries an engine); it carries the curl CA bundle (as the ARM key does).
+    # through the Catalogue (no image carries an engine); the CA bundle is the image's own (tls layer, z:\resource\ssl).
     "phewebengine_webkit": dict(mmp=os.path.join(OS_ROOT, "src/phewebengine_webkit/group/phewebengine_webkit.mmp"),
                                 allow_wsd=True, static_ctors=True, rtti=False, defs=["__SOFTFP="],
-                                rom_data=[CA_BUNDLE],
                                 x32_archives=_web("x32", "phengine")
                                 + [f"thirdparty/x86/cxxrt/{a}.a" for a in ("libphcompat", "libstdc++", "libgcc_eh", "libgcc")]),
     # The page test on ARM, JSC with the JIT (ARCH=arm bash build.sh builds every archive into thirdparty/arm/).
@@ -72,11 +71,10 @@ COMPONENTS = {
                          arm_archives=_web("arm", "phengine")
                          + [f"thirdparty/arm/cxxrt/{a}.a" for a in ("libphcompat", "libstdc++")]),
     # The WebKit engine plug-in on ARM (the same ECom plug-in over the same engine archives as phebrctl_arm); `device_rom` = it
-    # ships in every ARM ROM, where the browser frontend finds it. Carries the curl CA bundle (as phebrctl_arm does).
+    # ships in every ARM ROM, where the browser frontend finds it. No CA bundle: the image has it.
     "phewebengine_webkit_arm": dict(mmp=os.path.join(OS_ROOT, "src/phewebengine_webkit/group/phewebengine_webkit.mmp"),
                                     rom="phewebengine_webkit.dll", device=True, device_rom=True,
                                     allow_wsd=True, static_ctors=True, rtti=False, defs=["__SOFTFP="],
-                                    rom_data=[CA_BUNDLE],
                                     arm_archives=_web("arm", "phengine")
                                     + [f"thirdparty/arm/cxxrt/{a}.a" for a in ("libphcompat", "libstdc++")]),
 }

@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: BSD-2-Clause
 #
 # sis.sh -- the pdk's package.yml runs it after the components: the engine plug-in as
-# $PHOREPOC_BUILD/sis/webkit-symbian-<arch>.sis (the DLL, its ECom registration and the CA bundle).
+# $PHOREPOC_BUILD/sis/webkit-symbian-<arch>.sis (the DLL and its ECom registration; the CA bundle is the image's).
 set -eu
 ARCH=${PHOREPOC_ARCH:-x32}
 if [ "$ARCH" = arm ]; then KEY=phewebengine_webkit_arm; AFL=--arm; else KEY=phewebengine_webkit; AFL=; fi
