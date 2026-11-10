@@ -209,6 +209,29 @@ edit("WebCore/platform/network/curl/CurlRequest.cpp", '#include "ResourceError.h
 # s.js) waited forever. Poll in 20 ms slices until curl has a wake-up channel on Open C.
 edit("WebCore/platform/network/curl/CurlRequestScheduler.cpp", "        const int selectTimeoutMS = INT_MAX;\n",
      "#if defined(PHOREPOC)\n        const int selectTimeoutMS = 20;   // no curl_multi_wakeup (CURL_DISABLE_SOCKETPAIR)\n#else\n        const int selectTimeoutMS = INT_MAX;\n#endif\n")
+# A POST body is sent through a read callback with no seek callback: when curl has to send the body again (the
+# request went out on a reused connection the server had closed, curl retries it on a new one) it cannot rewind and the
+# load fails with CURLE_SEND_FAIL_REWIND (26, "necessary data rewind was not possible": the login form POST of
+# the-internet.herokuapp.com). The seek callback restarts the form data stream from its first byte.
+edit("WebCore/platform/network/curl/CurlFormDataStream.h", "    void clean();\n",
+     "    void clean();\n    void rewind();   // PHOREPOC: curl's seek callback (resend the body)\n")
+edit("WebCore/platform/network/curl/CurlFormDataStream.cpp", "void CurlFormDataStream::clean()\n",
+     "void CurlFormDataStream::rewind()   // PHOREPOC\n{\n    m_fileHandle = { };\n    m_elementPosition = 0;\n"
+     "    m_dataOffset = 0;\n    m_totalReadSize = 0;\n}\n\nvoid CurlFormDataStream::clean()\n")
+edit("WebCore/platform/network/curl/CurlRequest.h", "    static size_t willSendDataCallback(char*, size_t, size_t, void*);\n",
+     "    static size_t willSendDataCallback(char*, size_t, size_t, void*);\n"
+     "    static int seekDataCallback(void*, curl_off_t, int);   // PHOREPOC\n")
+edit("WebCore/platform/network/curl/CurlRequest.cpp", "size_t CurlRequest::willSendDataCallback(char* ptr, size_t blockSize, size_t numberOfBlocks, void* userData)\n",
+     "int CurlRequest::seekDataCallback(void* userData, curl_off_t offset, int origin)   // PHOREPOC\n{\n"
+     "    if (offset || origin != SEEK_SET)\n        return CURL_SEEKFUNC_CANTSEEK;\n"
+     "    static_cast<CurlRequest*>(userData)->m_formDataStream.rewind();\n    return CURL_SEEKFUNC_OK;\n}\n\n"
+     "size_t CurlRequest::willSendDataCallback(char* ptr, size_t blockSize, size_t numberOfBlocks, void* userData)\n")
+for _m in ("enableHttpPutRequest", "enableHttpPostRequest"):
+    edit("WebCore/platform/network/curl/CurlRequest.cpp",
+         "    m_curlHandle->%s(totalSize);\n    m_curlHandle->setReadCallbackFunction(willSendDataCallback, this);\n" % _m,
+         "    m_curlHandle->%s(totalSize);\n    m_curlHandle->setReadCallbackFunction(willSendDataCallback, this);\n"
+         "    curl_easy_setopt(m_curlHandle->handle(), CURLOPT_SEEKFUNCTION, seekDataCallback);   // PHOREPOC\n"
+         "    curl_easy_setopt(m_curlHandle->handle(), CURLOPT_SEEKDATA, this);\n" % _m)
 
 bad = 0
 for f, old, new in E:
