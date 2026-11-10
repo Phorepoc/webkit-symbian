@@ -92,8 +92,8 @@ struct Shared {
     int evHead { 0 }, evCount { 0 };
     bool notifyPending { false };
     bool repaintQueued { false };
-    unsigned short str[6][kStrMax];
-    int strLen[6] { };
+    unsigned short str[7][kStrMax];
+    int strLen[7] { };
     PhViewState state { };
     unsigned* front { nullptr };   // allocated and freed by the UI thread (ph_eng_view_create / _resize / _destroy)
     int fw { 0 }, fh { 0 };
@@ -116,7 +116,7 @@ volatile int gQuit;
 
 constexpr int kTextMax = 4096;
 struct Cmd {
-    enum Type { Create, Destroy, Resize, Visible, Load, Command, Pointer, Scroll, Key, Setting, SetIap, Zoom } type;
+    enum Type { Create, Destroy, Resize, Visible, Load, Command, Pointer, Scroll, Key, Setting, SetIap, Zoom, SetField } type;
     int view;
     int a, b, c;
     int textLen;
@@ -572,6 +572,16 @@ void refreshFocus(PhView& v)
                 href = downcast<HTMLAnchorElement>(*element).href().string();
     setStr(v.id, PH_STR_FOCUS_URL, href);
     if (kind != v.focusKind) {
+        String value;                    // the frontend's field editor starts with it (never a password)
+        if (kind == 2)
+            if (RefPtr frame = mainFrame(v))
+                if (RefPtr element = frame->document()->focusedElement()) {
+                    if (auto* in = dynamicDowncast<HTMLInputElement>(element.get()); in && !in->isPasswordField())
+                        value = in->value();
+                    else if (auto* ta = dynamicDowncast<HTMLTextAreaElement>(element.get()))
+                        value = ta->value();
+                }
+        setStr(v.id, PH_STR_FOCUS_VALUE, value);
         v.focusKind = kind;
         post(v.id, PH_EV_FOCUS, kind);
     }
@@ -815,6 +825,17 @@ void runCommands()
         case Cmd::Scroll: scrollBy(*v, cmd.a, cmd.b); break;
         case Cmd::Zoom: zoomTo(*v, cmd.a, cmd.b, cmd.c); break;
         case Cmd::Key: key(*v, cmd.a, cmd.b, cmd.c); break;
+        case Cmd::SetField:                   // the frontend's field editor committed: the whole new value
+            if (RefPtr frame = mainFrame(*v))
+                if (RefPtr element = frame->document()->focusedElement()) {
+                    String nv = fromU16(cmd.text, cmd.textLen);
+                    if (auto* in = dynamicDowncast<HTMLInputElement>(element.get()))
+                        in->setValue(nv, DispatchInputAndChangeEvent);
+                    else if (auto* ta = dynamicDowncast<HTMLTextAreaElement>(element.get()))
+                        ta->setValue(nv, DispatchInputAndChangeEvent);
+                    v->dirty = true;
+                }
+            break;
         case Cmd::Setting: setting(*v, cmd.a, cmd.b); break;
         default: break;
         }
@@ -1085,6 +1106,15 @@ void ph_eng_load(int view, const unsigned short* url, int len)
     enqueue(c);
 }
 
+void ph_eng_set_field(int view, const unsigned short* s, int len)
+{
+    Cmd c;
+    initCmd(c, Cmd::SetField, view);
+    c.textLen = len < kTextMax ? len : kTextMax;
+    memcpy(c.text, s, c.textLen * sizeof(unsigned short));
+    enqueue(c);
+}
+
 void ph_eng_cmd(int view, int cmd)
 {
     Cmd c;
@@ -1177,7 +1207,7 @@ int ph_eng_get_str(int view, int which, unsigned short* buf, int cap)
     int len = 0;
     pthread_mutex_lock(&gLock);
     auto it = gShared.find(view);
-    if (it != gShared.end() && which >= 0 && which < 6) {
+    if (it != gShared.end() && which >= 0 && which < 7) {
         len = it->second->strLen[which];
         int n = len < cap ? len : cap;
         if (n > kStrMax)

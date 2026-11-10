@@ -43,7 +43,8 @@ typedef struct PhEvent {
 } PhEvent;
 
 /* ph_eng_get_str */
-enum { PH_STR_URL = 0, PH_STR_TITLE = 1, PH_STR_ERROR = 2, PH_STR_FOCUS_URL = 3, PH_STR_NEWWIN = 4, PH_STR_TEXT = 5 };
+enum { PH_STR_URL = 0, PH_STR_TITLE = 1, PH_STR_ERROR = 2, PH_STR_FOCUS_URL = 3, PH_STR_NEWWIN = 4, PH_STR_TEXT = 5,
+       PH_STR_FOCUS_VALUE = 6 /* the focused text field's value when focus became 2 ("" for a password) */ };
 
 /* ph_eng_cmd */
 enum { PH_CMD_STOP = 0, PH_CMD_RELOAD = 1, PH_CMD_BACK = 2, PH_CMD_FORWARD = 3, PH_CMD_ACTIVATE = 4 };
@@ -82,6 +83,7 @@ void ph_eng_pointer(int view, int type, int x, int y);
 void ph_eng_scroll(int view, int dx, int dy);              /* relative, view pixels */
 void ph_eng_zoom(int view, int permille, int cx, int cy);  /* absolute zoom about the view point (cx, cy); clamped to [fit width, page maximum] */
 void ph_eng_key(int view, int winKey, int unicode, int down);
+void ph_eng_set_field(int view, const unsigned short* s, int len);   /* replace the focused text field's value */
 void ph_eng_setting(int view, int id, int value);          /* PH_SET_* */
 enum { PH_SET_SCRIPT = 0, PH_SET_IMAGES = 1, PH_SET_FONTSCALE = 2, PH_SET_COOKIES = 3 };
 

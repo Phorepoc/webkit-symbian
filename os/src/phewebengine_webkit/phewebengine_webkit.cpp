@@ -378,6 +378,7 @@ int A_get_str(PheView v, int which, unsigned short* buf, int cap)
 	case PHE_STR_ERROR: w = PH_STR_ERROR; break;
 	case PHE_STR_NEWVIEW: w = PH_STR_NEWWIN; break;
 	case PHE_STR_FOCUS_URL: w = PH_STR_FOCUS_URL; break;
+	case PHE_STR_FOCUS_VALUE: w = PH_STR_FOCUS_VALUE; break;
 	default: break;
 		}
 	return w < 0 ? 0 : ph_eng_get_str(v, w, buf, cap);
@@ -454,6 +455,7 @@ void A_text(PheView v, const unsigned short* s, int len)
 		ph_eng_key(v, 0, s[i], 0);
 		}
 	}
+void A_set_field(PheView v, const unsigned short* s, int len) { ph_eng_set_field(v, s, len); }
 void A_setting(PheView v, int id, int value)
 	{
 	switch (id)
@@ -525,7 +527,8 @@ const PheWebEngineApi KApi =
 	A_lock_pixels, A_unlock_pixels, A_snapshot,
 	A_find, A_find_next, A_find_close,
 	A_download_accept, A_download_cancel,
-	A_clear_data
+	A_clear_data,
+	A_set_field
 	};
 
 // ---- the ECom object ---------------------------------------------------------------------------------------------------------
