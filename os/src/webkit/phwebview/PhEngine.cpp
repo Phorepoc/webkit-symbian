@@ -195,6 +195,7 @@ struct PhView {
     bool loading { false };
     int lastProgress { -1 };
     int focusKind { 0 };
+    const void* focusElement { nullptr }; // the focused field (identity only): a tap from one field to the next is a new focus
     ScrollPosition lastPainted;
     // our own history (BackForwardClient is the empty one): committed URLs
     std::vector<String> history;
@@ -571,19 +572,29 @@ void refreshFocus(PhView& v)
             if (RefPtr element = frame->document()->focusedElement())
                 href = downcast<HTMLAnchorElement>(*element).href().string();
     setStr(v.id, PH_STR_FOCUS_URL, href);
-    if (kind != v.focusKind) {
+    const void* focused = nullptr;
+    if (kind == 2)
+        if (RefPtr frame = mainFrame(v))
+            focused = frame->document()->focusedElement();
+    // a new kind, or another text field: kind 2 -> 2 (a tap from the user name straight to the password) is a new focus
+    if (kind != v.focusKind || (kind == 2 && focused != v.focusElement)) {
         String value;                    // the frontend's field editor starts with it (never a password)
+        int password = 0;                // b = 1: a password field (the frontend edits it in a secret editor)
         if (kind == 2)
             if (RefPtr frame = mainFrame(v))
                 if (RefPtr element = frame->document()->focusedElement()) {
-                    if (auto* in = dynamicDowncast<HTMLInputElement>(element.get()); in && !in->isPasswordField())
-                        value = in->value();
-                    else if (auto* ta = dynamicDowncast<HTMLTextAreaElement>(element.get()))
+                    if (auto* in = dynamicDowncast<HTMLInputElement>(element.get())) {
+                        if (in->isPasswordField())
+                            password = 1;
+                        else
+                            value = in->value();
+                    } else if (auto* ta = dynamicDowncast<HTMLTextAreaElement>(element.get()))
                         value = ta->value();
                 }
         setStr(v.id, PH_STR_FOCUS_VALUE, value);
         v.focusKind = kind;
-        post(v.id, PH_EV_FOCUS, kind);
+        v.focusElement = focused;
+        post(v.id, PH_EV_FOCUS, kind, password);
     }
 }
 
