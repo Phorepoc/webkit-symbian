@@ -73,3 +73,7 @@ jobs:
               --notes-file notes.md
           fi
           gh release upload "$VERSION" out/* -R "${{ github.repository }}" --clobber
+      - name: Refresh the Catalogue index
+        uses: Phorepoc/pdk/.github/actions/index-refresh@main
+        with:
+          token: ${{ secrets.INDEX_DISPATCH_TOKEN }}
