@@ -46,7 +46,7 @@ namespace WebCore {
 // HTTP cookies. Upstream the network process keeps them (NetworkDataTaskCurl: the Cookie header before each request,
 // Set-Cookie from each response, redirects included); this in-process path had neither, so no site could keep a
 // session. One jar for the process, in memory (an ephemeral session = CookieJarDB ":memory:"): cookies live as long as
-// the engine. (Round 17: stored + sent on the phone; the herokuapp login still loses its rack.session cookie -- open.)
+// the engine.
 NetworkStorageSession& phCookieStorageSession()
 {
     static NeverDestroyed<NetworkStorageSession> session(PAL::SessionID::legacyPrivateSessionID());

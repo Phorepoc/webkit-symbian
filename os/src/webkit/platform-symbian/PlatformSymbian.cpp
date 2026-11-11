@@ -19,6 +19,7 @@
 #include "WebKitFontFamilyNames.h"
 #include <wtf/NeverDestroyed.h>
 #include <wtf/text/CString.h>
+#include <string>
 
 extern "C" const char* nspsl_getpublicsuffix(const char* hostname);
 
@@ -112,27 +113,32 @@ void PlatformKeyboardEvent::disambiguateKeyDownEvent(Type type, bool backwardsCo
         m_keyIdentifier = String();
 }
 
-// ---- PublicSuffixStore (libnspsl: returns the public suffix of a host name, or NULL)
+// ---- PublicSuffixStore (libnspsl). Despite its name, nspsl_getpublicsuffix returns the REGISTRABLE domain -- the
+// public suffix plus one label, a pointer into the host name -- or NULL when the host is itself a public suffix (or
+// malformed): "a.b.example.co.uk" -> "example.co.uk", "co.uk" -> NULL. Reading it as "the suffix" made every
+// registrable host a public suffix, and CookieJarDB::canAcceptCookie refused all their cookies (round 18: a
+// herokuapp login lost its session cookie).
 bool PublicSuffixStore::platformIsPublicSuffix(StringView domain) const
 {
-    CString host = domain.utf8();
-    const char* suffix = nspsl_getpublicsuffix(host.data());
-    return suffix && !strcmp(suffix, host.data());
+    // a host is a public suffix when one more label in front of it is exactly a registrable domain
+    CString host = domain.convertToASCIILowercase().utf8();
+    if (!host.length() || host.data()[0] == '.')
+        return false;
+    std::string probe = std::string("x.") + host.data();
+    const char* registrable = nspsl_getpublicsuffix(probe.c_str());
+    return registrable == probe.c_str();
 }
 
 String PublicSuffixStore::platformTopPrivatelyControlledDomain(StringView host) const
 {
-    CString name = host.utf8();
-    const char* suffix = nspsl_getpublicsuffix(name.data());
-    if (!suffix || suffix == name.data() || !strcmp(suffix, name.data()))
-        return { };
-    // the label just left of the public suffix: "a.b.example.co.uk" -> suffix "co.uk" -> "example.co.uk"
+    CString name = host.convertToASCIILowercase().utf8();
     const char* start = name.data();
-    const char* end = suffix - 1; // the '.' before the suffix
-    const char* label = end;
-    while (label > start && label[-1] != '.')
-        --label;
-    return String::fromUTF8(label);
+    while (*start == '.')                    // the cookie format may carry a leading dot
+        ++start;
+    const char* registrable = nspsl_getpublicsuffix(start);
+    if (!registrable)
+        return { };
+    return String::fromUTF8(registrable);
 }
 
 } // namespace WebCore
