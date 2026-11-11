@@ -592,6 +592,8 @@ void refreshFocus(PhView& v)
                         value = ta->value();
                 }
         setStr(v.id, PH_STR_FOCUS_VALUE, value);
+        if (kind == 2 && v.focusKind == 2)
+            post(v.id, PH_EV_FOCUS, 0);  // the previous field lost the caret first (the frontend's cue that this is a new field)
         v.focusKind = kind;
         v.focusElement = focused;
         post(v.id, PH_EV_FOCUS, kind, password);
