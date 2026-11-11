@@ -20,6 +20,9 @@
 #include "CurlRequest.h"
 #include "CurlRequestClient.h"
 #include "CurlResponse.h"
+#include "NetworkStorageSession.h"
+#include "SameSiteInfo.h"
+#include "StorageSessionProvider.h"
 #include "HTTPHeaderNames.h"
 #include "NetworkLoadMetrics.h"
 #include "ResourceError.h"
@@ -40,6 +43,30 @@
 
 namespace WebCore {
 
+// HTTP cookies. Upstream the network process keeps them (NetworkDataTaskCurl: the Cookie header before each request,
+// Set-Cookie from each response, redirects included); this in-process path had neither, so no site could keep a
+// session. One jar for the process, in memory (an ephemeral session = CookieJarDB ":memory:"): cookies live as long as
+// the engine. (Round 17: stored + sent on the phone; the herokuapp login still loses its rack.session cookie -- open.)
+NetworkStorageSession& phCookieStorageSession()
+{
+    static NeverDestroyed<NetworkStorageSession> session(PAL::SessionID::legacyPrivateSessionID());
+    return session.get();
+}
+
+class PhStorageSessionProvider final : public StorageSessionProvider {
+    NetworkStorageSession* storageSession() const final { return &phCookieStorageSession(); }
+};
+
+Ref<StorageSessionProvider> phCookieStorageSessionProvider()
+{
+    return adoptRef(*new PhStorageSessionProvider);
+}
+
+static URL firstPartyFor(const ResourceRequest& request)
+{
+    return request.firstPartyForCookies().isEmpty() ? request.url() : request.firstPartyForCookies();
+}
+
 class PhCurlBridge final : public CurlRequestClient, public RefCounted<PhCurlBridge> {
 public:
     static Ref<PhCurlBridge> create(ResourceHandle& handle) { return adoptRef(*new PhCurlBridge(handle)); }
@@ -51,7 +78,17 @@ public:
     {
         printf("curl: start %s\n", request.url().string().utf8().data());
         m_start = MonotonicTime::now();
-        m_request = CurlRequest::create(request, *this);
+        m_current = request;
+        ResourceRequest withCookies = request;
+        if (withCookies.httpHeaderField(HTTPHeaderName::Cookie).isEmpty()) {
+            auto secure = request.url().protocolIs("https"_s) ? IncludeSecureCookies::Yes : IncludeSecureCookies::No;
+            auto cookies = phCookieStorageSession().cookieRequestHeaderFieldValue(firstPartyFor(request), SameSiteInfo::create(request),
+                request.url(), std::nullopt, std::nullopt, secure, ApplyTrackingPrevention::No, ShouldRelaxThirdPartyCookieBlocking::No,
+                IsKnownCrossSiteTracker::No).first;
+            if (!cookies.isEmpty())
+                withCookies.setHTTPHeaderField(HTTPHeaderName::Cookie, cookies);
+        }
+        m_request = CurlRequest::create(withCookies, *this);
         m_request->resume();
     }
 
@@ -88,6 +125,13 @@ private:
         auto* c = client();
         if (!c)
             return;
+        static constexpr auto setCookie = "set-cookie:"_s;
+        for (const auto& header : curlResponse.headers) {
+            if (!header.startsWithIgnoringASCIICase(setCookie))
+                continue;
+            phCookieStorageSession().setCookiesFromHTTPResponse(firstPartyFor(m_current), curlResponse.url,
+                header.substring(setCookie.length()).trim(isASCIIWhitespace<char16_t>));
+        }
         ResourceResponse response(curlResponse);
         if (response.isRedirection() && !response.httpHeaderField(HTTPHeaderName::Location).isEmpty()) {
             redirect(WTF::move(response));
@@ -245,6 +289,7 @@ private:
 
     ResourceHandle* m_handle;
     RefPtr<CurlRequest> m_request;
+    ResourceRequest m_current;          // the request in flight (its first party scopes the cookies it sets)
     unsigned m_redirectCount { 0 };
     unsigned m_bytes { 0 };
     MonotonicTime m_start;

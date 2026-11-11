@@ -17,6 +17,8 @@
 #include <WebCore/DocumentLoader.h>
 #include <WebCore/DocumentView.h>
 #include <WebCore/DocumentWriter.h>
+#include <WebCore/CookieJar.h>
+#include <WebCore/StorageSessionProvider.h>
 #include <WebCore/EmptyClients.h>
 #include <WebCore/Editor.h>
 #include <WebCore/Element.h>
@@ -73,6 +75,11 @@
 #include <map>
 #include <string>
 #include <vector>
+
+namespace WebCore {
+class StorageSessionProvider;
+Ref<StorageSessionProvider> phCookieStorageSessionProvider();   // ResourceHandleSymbian.cpp: the process's cookie jar
+}
 
 using namespace WebCore;
 
@@ -373,6 +380,9 @@ void createView(const Cmd& cmd)
 
     auto configuration = pageConfigurationWithEmptyClients(std::nullopt, PAL::SessionID::defaultSessionID());
     configuration.databaseProvider = Phorepoc::PhDatabaseProvider::create();
+    // document.cookie: the same jar the network path (ResourceHandleSymbian.cpp) stores Set-Cookie in and sends Cookie from
+    // (the empty clients' jar has no storage session, so scripts saw no cookies)
+    configuration.cookieJar = CookieJar::create(phCookieStorageSessionProvider());
     configuration.chromeClient = UniqueRef<ChromeClient>(makeUniqueRef<PhChromeClient>());
     auto& mainFrameParameters = std::get<PageConfiguration::LocalMainFrameCreationParameters>(configuration.mainFrameCreationParameters);
     mainFrameParameters.effectiveSandboxFlags = { };
