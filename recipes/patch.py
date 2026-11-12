@@ -14,8 +14,17 @@ edit("WTF/wtf/AvailableMemory.cpp", '#elif OS(UNIX) || OS(HAIKU)\n    long pages
      '#elif defined(PHOREPOC)\n    return ph_total_ram_bytes();\n#elif OS(UNIX) || OS(HAIKU)\n    long pages = sysconf(_SC_PHYS_PAGES);')
 edit("WTF/wtf/AvailableMemory.cpp", '#include "config.h"\n', '#include "config.h"\n#if defined(PHOREPOC)\n#include <wtf/symbian/PhSymbian.h>\n#endif\n')
 edit("WTF/wtf/StackBounds.cpp", '#else // !OS(OPENBSD)\n',
-     '#elif defined(PHOREPOC)\n\n// Phorepoc: Open C has no pthread_getattr_np; the calling thread\'s stack comes from RThread::StackInfo (phsym.cpp).\n'
-     'StackBounds StackBounds::newThreadStackBounds(PlatformThreadHandle)\n{\n    void* origin = nullptr;\n    void* bound = nullptr;\n    ph_current_stack_bounds(&origin, &bound);\n    return StackBounds { origin, bound };\n}\n\n'
+     '#elif defined(PHOREPOC)\n\n// Phorepoc: Open C has no pthread_getattr_np; only the CALLING thread\'s stack is known, from RThread::StackInfo\n'
+     '// (phsym.cpp). Thread::create asks for a NEW thread\'s bounds from the creating thread: answering with the caller\'s\n'
+     '// stack gave every WTF thread (Web Workers) the engine thread\'s stack, and JSC\'s sanitizeStackForVMImpl then zeroed\n'
+     '// from that lastStackTop up to the worker\'s sp, off the top of the stack (old.reddit.com\'s recaptcha worker killed the\n'
+     '// engine). For another thread the bounds are empty: Thread::initializeInThread then records them on the thread itself.\n'
+     'StackBounds StackBounds::newThreadStackBounds(PlatformThreadHandle thread)\n{\n'
+     '    if (!pthread_equal(thread, pthread_self()))\n        return emptyBounds();\n'
+     '    void* origin = nullptr;\n    void* bound = nullptr;\n'
+     '    int rc = ph_current_stack_bounds(&origin, &bound);\n'
+     '    RELEASE_ASSERT(!rc && origin && bound && bound < origin);   // never silently empty / wrong bounds\n'
+     '    return StackBounds { origin, bound };\n}\n\n'
      '#else // !OS(OPENBSD)\n')
 edit("WTF/wtf/StackBounds.cpp", 'StackBounds StackBounds::currentThreadStackBoundsInternal()\n{\n    auto ret = newThreadStackBounds(pthread_self());',
      'StackBounds StackBounds::currentThreadStackBoundsInternal()\n{\n#if defined(PHOREPOC)\n    return newThreadStackBounds(pthread_self());\n#endif\n    auto ret = newThreadStackBounds(pthread_self());')
