@@ -535,7 +535,11 @@ void loadUrl(PhView& v, const String& url, bool retry = false)
         v.retriesLeft = 3;
         post(v.id, PH_EV_START, 0);
     }
-    frame->loader().load(FrameLoadRequest(*frame, ResourceRequest(URL { u })));
+    // a URL the frontend asked for = user input (typed, a bookmark, the command line): WebKit then lets the top frame show a
+    // data: URL, as desktop browsers do for a typed one (DocumentLoader::disallowDataRequest cancelled it after the response)
+    FrameLoadRequest request(*frame, ResourceRequest(URL { u }));
+    request.setIsRequestFromClientOrUserInput();
+    frame->loader().load(WTF::move(request));
 }
 
 void historyGo(PhView& v, int delta)
