@@ -242,6 +242,17 @@ for _m in ("enableHttpPutRequest", "enableHttpPostRequest"):
          "    curl_easy_setopt(m_curlHandle->handle(), CURLOPT_SEEKFUNCTION, seekDataCallback);   // PHOREPOC\n"
          "    curl_easy_setopt(m_curlHandle->handle(), CURLOPT_SEEKDATA, this);\n" % _m)
 
+# data: URLs: DataURLDecoder::decode decodes on a WorkQueue thread and posts the result back to the main RunLoop; here that
+# load never finished (loading stayed at 1, a blank page). Decode on the calling (engine) thread instead and post only the
+# completion, through the same RunLoop::mainSingleton().dispatch the loader strategy already uses.
+edit("WebCore/platform/network/DataURLDecoder.cpp",
+     "    decodeQueueSingleton().dispatch([decodeTask = createDecodeTask(url, scheduleContext, shouldValidatePadding, WTF::move(completionHandler))]() mutable {\n",
+     "#if defined(PHOREPOC)\n    {\n        auto decodeTask = createDecodeTask(url, scheduleContext, shouldValidatePadding, WTF::move(completionHandler));\n"
+     "        auto result = decodeSynchronously(*decodeTask);\n"
+     "        RunLoop::mainSingleton().dispatch([result = WTF::move(result), completionHandler = WTF::move(decodeTask->completionHandler)]() mutable {\n"
+     "            completionHandler(WTF::move(result));\n        });\n        return;\n    }\n#endif\n"
+     "    decodeQueueSingleton().dispatch([decodeTask = createDecodeTask(url, scheduleContext, shouldValidatePadding, WTF::move(completionHandler))]() mutable {\n")
+
 bad = 0
 for f, old, new in E:
     p = SRC + f

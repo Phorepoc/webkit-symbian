@@ -193,6 +193,20 @@ extern "C" void ph_heap_check(const char* aWhen)
 	RDebug::Printf("[js] heap ok after %s: %d cells %d bytes, size %d", aWhen, cells, allocSize, User::Heap().Size());
 	}
 
+// a failed allocation (bmalloc's SystemHeap, just before its RELEASE_BASSERT ends the engine with far 0xbbadbeef): the request
+// and the calling thread's heap, so the log tells a full heap (max reached) from a bogus size or a fragmented one
+extern "C" void ph_oom_report(size_t aSize)
+	{
+	RHeap& h = User::Heap();
+	TInt biggest = 0, allocSize = 0, cells = User::AllocSize(allocSize);
+	TInt avail = h.Available(biggest);
+	TFullName name = RThread().FullName();
+	TBuf8<128> n8;
+	n8.Copy(name.Left(120));
+	RDebug::Printf("PH: [webkit] OOM: malloc(%u) failed in %s: heap size %d max %d, %d cells %d bytes, free %d (biggest %d), RAM free %u",
+		(unsigned)aSize, (const char*)n8.PtrZ(), h.Size(), h.MaxLength(), cells, allocSize, avail, biggest, (unsigned)ph_free_ram_bytes());
+	}
+
 // one line straight to the serial log (stdout reaches it only at exit/abort; a panic loses it): phwebtest's WPT test markers
 // RDebug truncates near 256 bytes: longer lines go out in 200-byte pieces, each after the first marked "[js] >+ " (phweb_iter.sh
 // joins them). No file I/O -- the per-test stdout replay (fopen/fseek of jsout.txt ~200 times) went with corrupt Open C file

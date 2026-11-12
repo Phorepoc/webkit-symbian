@@ -9,6 +9,7 @@
 #include <e32base.h>
 #include <e32debug.h>
 #include <e32math.h>
+#include <e32hal.h>
 #include <es_sock.h>
 #include <es_enum.h>
 #ifdef __arm__
@@ -327,10 +328,34 @@ void StartEngineL()
 			}
 		ph_eng_set_useragent(ua.Ptr(), ge == KErrNone ? ua.Length() : 0);
 		}
-	// its own heap (WebKit allocates through malloc = this thread's heap) and the flexible memory model's largest stack
+	// its own heap (WebKit allocates through malloc = this thread's heap) and the flexible memory model's largest stack.
+	// Heap max = half the device's RAM (a max only reserves address space; pages are committed as used; the rest of the
+	// process needs room too), halved while the address space cannot reserve it (x32 refused 384 MB with KErrNoMemory, browser-frontend.md
+	// 13.4). A fixed 128 MB ran out on old.reddit.com (bmalloc OOM, far 0xbbadbeef, while decoding a large script).
 	_LIT(KName, "phengine");
 	SnapshotThreads();
-	User::LeaveIfError(gEngine.Create(KName, EngineThreadFn, 0x100000, 0x100000, 0x08000000, NULL));
+	// The heap is created HERE, not by RThread::Create(..., maxHeap): that one builds the heap in the new thread, so a max the
+	// address space cannot hold comes back as the thread dying with KErrNoMemory (exit -4), never as an error to step down on.
+	TInt maxHeap = 0x20000000;   // 512 MB at most: half of a 1 GB device, as phebrowser.exe's own heap there
+		{
+		TMemoryInfoV1Buf mi;
+		if (UserHal::MemoryInfo(mi) == KErrNone && mi().iTotalRamInBytes > 0 && mi().iTotalRamInBytes / 2 < maxHeap)
+			maxHeap = (mi().iTotalRamInBytes / 2) & ~0xFFFFF;
+		}
+	RHeap* heap = NULL;
+	for (; maxHeap >= 0x04000000 && !heap; )
+		{
+		heap = UserHeap::ChunkHeap(NULL, 0x100000, maxHeap);
+		if (!heap)
+			maxHeap >>= 1;
+		}
+	RDebug::Printf("PH: [phewebengine_webkit] engine heap max %d MB (%s)", maxHeap >> 20, heap ? "ok" : "FAILED");
+	if (!heap)
+		User::Leave(KErrNoMemory);
+	TInt cr = gEngine.Create(KName, EngineThreadFn, 0x100000, heap, NULL);
+	if (cr != KErrNone)
+		heap->Close();
+	User::LeaveIfError(cr);
 	gEngine.SetPriority(EPriorityNormal);
 	gEngine.Resume();
 	gEngineStarted = ETrue;
