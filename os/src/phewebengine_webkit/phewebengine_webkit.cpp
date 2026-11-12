@@ -33,6 +33,76 @@ RThread gEngine;
 TBool gEngineStarted = EFalse;
 TBool gNetDone = EFalse;
 
+// The threads of this process that ran before the engine started. Every later one is the engine's (phengine and the WTF
+// threads it creates: Web Workers, the GC, timers), and runs code of this DLL: they are stopped before it unloads, or they
+// fault at "(no code segment)" once the frontend has closed it.
+const TInt KMaxPreThreads = 64;
+TThreadId gPreThreads[KMaxPreThreads];
+TInt gPreThreadCount = 0;
+
+void SnapshotThreads()
+	{
+	gPreThreadCount = 0;
+	const TProcessId me = RProcess().Id();
+	TFindThread f(_L("*"));
+	TFullName name;
+	while (f.Next(name) == KErrNone && gPreThreadCount < KMaxPreThreads)
+		{
+		RThread t;
+		if (t.Open(f) != KErrNone)
+			continue;
+		RProcess p;
+		if (t.Process(p) == KErrNone)
+			{
+			if (p.Id() == me)
+				gPreThreads[gPreThreadCount++] = t.Id();
+			p.Close();
+			}
+		t.Close();
+		}
+	}
+
+// kills the engine thread, then every thread of this process that started after the snapshot (not the caller)
+void StopEngineThreads()
+	{
+	if (!gEngineStarted)
+		return;
+	gEngine.Kill(KErrNone);
+	gEngine.Close();
+	gEngineStarted = EFalse;
+	const TProcessId me = RProcess().Id();
+	const TThreadId self = RThread().Id();
+	TInt killed = 0;
+	TFindThread f(_L("*"));
+	TFullName name;
+	while (f.Next(name) == KErrNone)
+		{
+		RThread t;
+		if (t.Open(f) != KErrNone)
+			continue;
+		RProcess p;
+		TBool ours = EFalse;
+		if (t.Process(p) == KErrNone)
+			{
+			ours = p.Id() == me;
+			p.Close();
+			}
+		if (ours && t.Id() != self && t.ExitType() == EExitPending)
+			{
+			TBool pre = EFalse;
+			for (TInt i = 0; i < gPreThreadCount && !pre; ++i)
+				pre = gPreThreads[i] == t.Id();
+			if (!pre)
+				{
+				t.Kill(KErrNone);
+				++killed;
+				}
+			}
+		t.Close();
+		}
+	RDebug::Printf("PH: [phewebengine_webkit] engine stopped, %d engine threads killed", killed);
+	}
+
 // ON THE ENGINE THREAD: forward to the frontend's notify (which only completes a request on the UI thread)
 void NotifyTrampoline(void*, int aView)
 	{
@@ -259,6 +329,7 @@ void StartEngineL()
 		}
 	// its own heap (WebKit allocates through malloc = this thread's heap) and the flexible memory model's largest stack
 	_LIT(KName, "phengine");
+	SnapshotThreads();
 	User::LeaveIfError(gEngine.Create(KName, EngineThreadFn, 0x100000, 0x100000, 0x08000000, NULL));
 	gEngine.SetPriority(EPriorityNormal);
 	gEngine.Resume();
@@ -314,6 +385,7 @@ void A_shutdown()
 	for (TInt i = 0; i < gViews.Count(); ++i)
 		ph_eng_view_destroy(gViews[i]);
 	gViews.Close();
+	StopEngineThreads();
 	}
 void A_set_useragent(const unsigned short* s, int len) { ph_eng_set_useragent(s, len); }
 void A_set_iap(const char* n) { ph_eng_set_iap(n); gNetDone = ETrue; }
