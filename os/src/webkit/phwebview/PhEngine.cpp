@@ -19,6 +19,13 @@
 #include <WebCore/DocumentWriter.h>
 #include <WebCore/CookieJar.h>
 #include <WebCore/StorageSessionProvider.h>
+#include <WebCore/SecurityOrigin.h>
+#include <WebCore/SecurityOriginData.h>
+#include <WebCore/StorageArea.h>
+#include <WebCore/StorageMap.h>
+#include <WebCore/StorageNamespace.h>
+#include <WebCore/StorageNamespaceProvider.h>
+#include <WebCore/StorageType.h>
 #include <WebCore/EmptyClients.h>
 #include <WebCore/Editor.h>
 #include <WebCore/Element.h>
@@ -370,6 +377,90 @@ private:
     int m_view;
 };
 
+// ---- Web Storage (localStorage / sessionStorage) ----------------------------------------------------------------------------
+// The empty clients' StorageNamespaceProvider hands out EmptyStorageArea: setItem drops the value and getItem is always null,
+// so a site that keeps state in localStorage lost it on every page load. Cookie-consent managers (cookie-script.com and others)
+// keep the consent string there next to their cookie and re-open the banner when it is missing: on myabandonware.com "Accept"
+// and "Decline" were forgotten on the next page. Upstream the UI process keeps the areas (WebKit2) or StorageAreaImpl
+// (WebKitLegacy), neither of which is in this build. These are in-process maps with the same lifetime as the cookie jar
+// (ResourceHandleSymbian.cpp): local storage per origin for the process, session storage per origin per page.
+class PhStorageArea final : public StorageArea {
+public:
+    PhStorageArea(StorageType type, unsigned quota) : m_type(type), m_map(quota) { }
+private:
+    unsigned length() final { return m_map.length(); }
+    String key(unsigned index) final { return m_map.key(index); }
+    String item(const String& key) final { return m_map.getItem(key); }
+    void setItem(LocalFrame&, const String& key, const String& value, bool& quotaException) final
+    {
+        String oldValue;
+        m_map.setItem(key, value, oldValue, quotaException);
+    }
+    void removeItem(LocalFrame&, const String& key) final
+    {
+        String oldValue;
+        m_map.removeItem(key, oldValue);
+    }
+    void clear(LocalFrame&) final { m_map.clear(); }
+    bool contains(const String& key) final { return m_map.contains(key); }
+    StorageType storageType() const final { return m_type; }
+    size_t memoryBytesUsedByCache() final { return 0; }
+
+    StorageType m_type;
+    StorageMap m_map;
+};
+
+class PhStorageNamespace final : public StorageNamespace {
+public:
+    PhStorageNamespace(StorageType type, unsigned quota, PAL::SessionID sessionID) : m_type(type), m_quota(quota), m_sessionID(sessionID) { }
+private:
+    Ref<StorageArea> storageArea(const SecurityOrigin& origin) final
+    {
+        return m_areas.ensure(origin.data(), [&] { return Ref<StorageArea>(adoptRef(*new PhStorageArea(m_type, m_quota))); }).iterator->value;
+    }
+    const SecurityOrigin* topLevelOrigin() const final { return nullptr; }
+    Ref<StorageNamespace> copy(Page&) final { return adoptRef(*new PhStorageNamespace(m_type, m_quota, m_sessionID)); }
+    PAL::SessionID sessionID() const final { return m_sessionID; }
+    void setSessionIDForTesting(PAL::SessionID sessionID) final { m_sessionID = sessionID; }
+
+    StorageType m_type;
+    unsigned m_quota;
+    PAL::SessionID m_sessionID;
+    HashMap<SecurityOriginData, Ref<StorageArea>> m_areas;
+};
+
+class PhStorageNamespaceProvider final : public StorageNamespaceProvider {
+public:
+    static PhStorageNamespaceProvider& shared()
+    {
+        static PhStorageNamespaceProvider* provider = &adoptRef(*new PhStorageNamespaceProvider).leakRef();
+        return *provider;
+    }
+private:
+    static constexpr unsigned kQuota = 5 * 1024 * 1024;  // the 5 MB per origin desktop browsers give
+    Ref<StorageNamespace> createLocalStorageNamespace(unsigned, PAL::SessionID sessionID) final
+    {
+        return adoptRef(*new PhStorageNamespace(StorageType::Local, kQuota, sessionID));
+    }
+    Ref<StorageNamespace> createTransientLocalStorageNamespace(SecurityOrigin&, unsigned, PAL::SessionID sessionID) final
+    {
+        return adoptRef(*new PhStorageNamespace(StorageType::TransientLocal, kQuota, sessionID));
+    }
+    // one session namespace per page (keyed by the pointer only; a closed view's small entry stays until the engine stops)
+    RefPtr<StorageNamespace> sessionStorageNamespace(const SecurityOrigin&, Page& page, ShouldCreateNamespace create) final
+    {
+        auto it = m_sessionNamespaces.find(&page);
+        if (it != m_sessionNamespaces.end())
+            return it->value.ptr();
+        if (create == ShouldCreateNamespace::No)
+            return nullptr;
+        Ref<StorageNamespace> ns = adoptRef(*new PhStorageNamespace(StorageType::Session, kQuota, page.sessionID()));
+        m_sessionNamespaces.add(&page, ns.copyRef());
+        return ns.ptr();
+    }
+    HashMap<Page*, Ref<StorageNamespace>> m_sessionNamespaces;
+};
+
 // ---- the engine's one-time setup -------------------------------------------------------------------------------------------
 void createView(const Cmd& cmd)
 {
@@ -383,6 +474,7 @@ void createView(const Cmd& cmd)
     // document.cookie: the same jar the network path (ResourceHandleSymbian.cpp) stores Set-Cookie in and sends Cookie from
     // (the empty clients' jar has no storage session, so scripts saw no cookies)
     configuration.cookieJar = CookieJar::create(phCookieStorageSessionProvider());
+    configuration.storageNamespaceProvider = &PhStorageNamespaceProvider::shared();   // localStorage that keeps its items
     configuration.chromeClient = UniqueRef<ChromeClient>(makeUniqueRef<PhChromeClient>());
     auto& mainFrameParameters = std::get<PageConfiguration::LocalMainFrameCreationParameters>(configuration.mainFrameCreationParameters);
     mainFrameParameters.effectiveSandboxFlags = { };
