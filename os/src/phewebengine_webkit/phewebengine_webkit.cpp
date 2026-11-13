@@ -68,6 +68,10 @@ void StopEngineThreads()
 	{
 	if (!gEngineStarted)
 		return;
+	// let the engine loop end by itself first (up to 1 s), so it writes the local storage it has not saved yet
+	ph_eng_quit();
+	for (TInt i = 0; i < 50 && ph_eng_running(); ++i)
+		User::After(20000);
 	gEngine.Kill(KErrNone);
 	gEngine.Close();
 	gEngineStarted = EFalse;

@@ -20,6 +20,7 @@
 #include "CurlRequest.h"
 #include "CurlRequestClient.h"
 #include "CurlResponse.h"
+#include "CookieJarDB.h"
 #include "NetworkStorageSession.h"
 #include "SameSiteInfo.h"
 #include "StorageSessionProvider.h"
@@ -39,17 +40,28 @@
 #include <wtf/MonotonicTime.h>
 #include <wtf/NeverDestroyed.h>
 #include <wtf/RunLoop.h>
+#include <sys/stat.h>
 #include <unistd.h>
 
 namespace WebCore {
 
 // HTTP cookies. Upstream the network process keeps them (NetworkDataTaskCurl: the Cookie header before each request,
 // Set-Cookie from each response, redirects included); this in-process path had neither, so no site could keep a
-// session. One jar for the process, in memory (an ephemeral session = CookieJarDB ":memory:"): cookies live as long as
-// the engine.
+// session. One jar for the process, kept in a CookieJarDB (SQLite) file in the browser's private directory, so
+// persistent cookies (a consent choice, a login) survive a browser restart; session cookies are dropped when the
+// database is opened, as upstream does.
 NetworkStorageSession& phCookieStorageSession()
 {
     static NeverDestroyed<NetworkStorageSession> session(PAL::SessionID::legacyPrivateSessionID());
+    static bool opened;
+    if (!opened) {
+        opened = true;
+        mkdir("c:/private/e7016b20/webkit", 0700);
+        auto db = makeUniqueRef<CookieJarDB>("c:/private/e7016b20/webkit/cookies.db"_s);
+        db->open();
+        session.get().setCookieDatabase(WTF::move(db));
+        printf("phweb: cookie jar c:/private/e7016b20/webkit/cookies.db, %u domains\n", session.get().cookieDatabase().allDomains().size());
+    }
     return session.get();
 }
 

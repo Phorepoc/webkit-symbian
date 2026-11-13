@@ -26,6 +26,9 @@
 #include <WebCore/StorageNamespace.h>
 #include <WebCore/StorageNamespaceProvider.h>
 #include <WebCore/StorageType.h>
+#include <sys/stat.h>
+#include <wtf/NeverDestroyed.h>
+#include <wtf/text/MakeString.h>
 #include <WebCore/EmptyClients.h>
 #include <WebCore/Editor.h>
 #include <WebCore/Element.h>
@@ -381,13 +384,74 @@ private:
 // The empty clients' StorageNamespaceProvider hands out EmptyStorageArea: setItem drops the value and getItem is always null,
 // so a site that keeps state in localStorage lost it on every page load. Cookie-consent managers (cookie-script.com and others)
 // keep the consent string there next to their cookie and re-open the banner when it is missing: on myabandonware.com "Accept"
-// and "Decline" were forgotten on the next page. Upstream the UI process keeps the areas (WebKit2) or StorageAreaImpl
-// (WebKitLegacy), neither of which is in this build. These are in-process maps with the same lifetime as the cookie jar
-// (ResourceHandleSymbian.cpp): local storage per origin for the process, session storage per origin per page.
+// and "Decline" were forgotten on the next page. Upstream the UI process keeps the areas (WebKit2) or StorageAreaImpl +
+// StorageAreaSync (WebKitLegacy), neither of which is in this build. Here: session storage = an in-memory map per origin per
+// page; local storage = a map per origin, loaded from and saved to one file per origin under kPhStorageDir (the browser's
+// private directory, like the cookie database in ResourceHandleSymbian.cpp), so it survives a browser restart. A change marks
+// the area dirty; phStorageFlush (the engine loop, and once more when the engine stops) writes dirty areas at most once a second.
+static const char kPhStorageDir[] = "c:/private/e7016b20/webkit/localstorage";
+
+class PhStorageArea;
+static Vector<PhStorageArea*>& phDirtyAreas()
+{
+    static NeverDestroyed<Vector<PhStorageArea*>> areas;
+    return areas.get();
+}
+
 class PhStorageArea final : public StorageArea {
 public:
-    PhStorageArea(StorageType type, unsigned quota) : m_type(type), m_map(quota) { }
+    PhStorageArea(StorageType type, unsigned quota, CString path) : m_type(type), m_map(quota), m_path(WTF::move(path))
+    {
+        if (!m_path.isNull())
+            load();
+    }
+    void save()
+    {
+        m_dirty = false;
+        String tmp = makeString(String::fromUTF8(m_path.data()), ".tmp"_s);
+        CString tmpPath = tmp.utf8();
+        FILE* f = fopen(tmpPath.data(), "wb");
+        if (!f)
+            return;
+        bool ok = true;
+        for (auto& item : m_map.items()) {
+            CString k = item.key.utf8(), v = item.value.utf8();
+            uint32_t lens[2] = { static_cast<uint32_t>(k.length()), static_cast<uint32_t>(v.length()) };
+            ok &= fwrite(lens, sizeof lens, 1, f) == 1 && fwrite(k.data(), 1, k.length(), f) == k.length()
+                && fwrite(v.data(), 1, v.length(), f) == v.length();
+        }
+        ok &= fclose(f) == 0;
+        if (ok) {
+            remove(m_path.data());
+            rename(tmpPath.data(), m_path.data());
+        } else
+            remove(tmpPath.data());
+    }
 private:
+    void load()
+    {
+        FILE* f = fopen(m_path.data(), "rb");
+        if (!f)
+            return;
+        HashMap<String, String> items;
+        uint32_t lens[2];
+        while (fread(lens, sizeof lens, 1, f) == 1 && lens[0] < (16u << 20) && lens[1] < (16u << 20)) {
+            Vector<char> buf(lens[0] + lens[1]);
+            if (fread(buf.mutableSpan().data(), 1, buf.size(), f) != buf.size())
+                break;
+            items.set(String::fromUTF8(buf.span().first(lens[0])), String::fromUTF8(buf.span().subspan(lens[0])));
+        }
+        fclose(f);
+        m_map.importItems(WTF::move(items));
+    }
+    void changed()
+    {
+        if (m_path.isNull() || m_dirty)
+            return;
+        m_dirty = true;
+        ref();                      // the dirty list keeps the area alive until it is written
+        phDirtyAreas().append(this);
+    }
     unsigned length() final { return m_map.length(); }
     String key(unsigned index) final { return m_map.key(index); }
     String item(const String& key) final { return m_map.getItem(key); }
@@ -395,20 +459,42 @@ private:
     {
         String oldValue;
         m_map.setItem(key, value, oldValue, quotaException);
+        if (!quotaException)
+            changed();
     }
     void removeItem(LocalFrame&, const String& key) final
     {
         String oldValue;
         m_map.removeItem(key, oldValue);
+        changed();
     }
-    void clear(LocalFrame&) final { m_map.clear(); }
+    void clear(LocalFrame&) final
+    {
+        m_map.clear();
+        changed();
+    }
     bool contains(const String& key) final { return m_map.contains(key); }
     StorageType storageType() const final { return m_type; }
     size_t memoryBytesUsedByCache() final { return 0; }
 
     StorageType m_type;
     StorageMap m_map;
+    CString m_path;             // null = memory only (session and transient storage)
+    bool m_dirty { false };
 };
+
+// the engine loop: write the dirty local storage areas (all of them when force, i.e. the engine is stopping)
+static void phStorageFlush(MonotonicTime now, bool force)
+{
+    static MonotonicTime last;
+    if (phDirtyAreas().isEmpty() || (!force && now - last < 1_s))
+        return;
+    last = now;
+    for (auto* area : std::exchange(phDirtyAreas(), { })) {
+        area->save();
+        area->deref();
+    }
+}
 
 class PhStorageNamespace final : public StorageNamespace {
 public:
@@ -416,7 +502,15 @@ public:
 private:
     Ref<StorageArea> storageArea(const SecurityOrigin& origin) final
     {
-        return m_areas.ensure(origin.data(), [&] { return Ref<StorageArea>(adoptRef(*new PhStorageArea(m_type, m_quota))); }).iterator->value;
+        return m_areas.ensure(origin.data(), [&] {
+            CString path;
+            if (m_type == StorageType::Local && !origin.isOpaque()) {
+                mkdir("c:/private/e7016b20/webkit", 0700);
+                mkdir(kPhStorageDir, 0700);
+                path = makeString(String::fromLatin1(kPhStorageDir), '/', origin.data().databaseIdentifier(), ".ls"_s).utf8();
+            }
+            return Ref<StorageArea>(adoptRef(*new PhStorageArea(m_type, m_quota, WTF::move(path))));
+        }).iterator->value;
     }
     const SecurityOrigin* topLevelOrigin() const final { return nullptr; }
     Ref<StorageNamespace> copy(Page&) final { return adoptRef(*new PhStorageNamespace(m_type, m_quota, m_sessionID)); }
@@ -1442,8 +1536,10 @@ int ph_eng_main(PhEngNotify notify, void* ctx)
             iters = paints = slowCycles = 0;
             tCmd = tCycle = tRender = tPaint = 0;
         }
+        phStorageFlush(now, false);
         usleep(idle && !busy ? (quiet ? 40000 : 20000) : 5000);
     }
+    phStorageFlush(MonotonicTime::now(), true);
     gRunning = 0;
     pthread_mutex_lock(&gLock);
     pthread_cond_broadcast(&gAck);
