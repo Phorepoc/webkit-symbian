@@ -1460,7 +1460,9 @@ int ph_eng_main(PhEngNotify notify, void* ctx)
 {
     gNotify = notify;
     gNotifyCtx = ctx;
-    ph_serialf("phengine: start");
+    // the run address of this function: with its link address in the DLL's ELF it gives the code's load offset, so
+    // profiler pcs in the engine (RAM-loaded code) can be named
+    ph_serialf("phengine: start (ph_eng_main at %p)", reinterpret_cast<void*>(&ph_eng_main));
     curl_global_init(CURL_GLOBAL_DEFAULT);
     JSC::initialize();
     WTF::initializeMainThread();

@@ -123,6 +123,13 @@ edit("ThirdParty/skia/src/ports/SkMemory_malloc.cpp", '    #elif defined(SK_BUIL
      '    #elif defined(PHOREPOC)   // no malloc_usable_size: the requested size\n    #elif defined(SK_BUILD_FOR_UNIX)\n        completeSize = malloc_usable_size(addr);')
 edit("ThirdParty/skia/src/core/SkAutoLocaleSetter.h", '#if defined(SK_BUILD_FOR_ANDROID) || defined(__UCLIBC__) || defined(_NEWLIB_VERSION)\n',
      '#if defined(SK_BUILD_FOR_ANDROID) || defined(__UCLIBC__) || defined(_NEWLIB_VERSION) || defined(PHOREPOC)   // Open C: setlocale only\n')
+# Skia's portable (no-NEON) raster pipeline: min/max per pixel and stage were out-of-line libm fminf/fmaxf calls (with
+# softfp ARMv7 GCC does not inline them): the top of a page paint's profile. Inline compares, same NaN rule as fminf/fmaxf
+# (a NaN operand yields the other one).
+edit("ThirdParty/skia/src/opts/SkRasterPipeline_opts.h", '    SI F   min(F a, F b)     { return fminf(a,b); }\n',
+     '    SI F   min(F a, F b)     { return (b < a || a != a) ? b : a; }   // Phorepoc: fminf, inline\n')
+edit("ThirdParty/skia/src/opts/SkRasterPipeline_opts.h", '    SI F   max(F a, F b)     { return fmaxf(a,b); }\n',
+     '    SI F   max(F a, F b)     { return (b > a || a != a) ? b : a; }   // Phorepoc: fmaxf, inline\n')
 edit("ThirdParty/skia/src/codec/SkJpegDecoderMgr.cpp", '        src->bytes_in_buffer = 0;\n        return false;\n    }\n    return true;\n}',
      '        src->bytes_in_buffer = 0;\n        return FALSE;   // Phorepoc: IJG libjpeg 9 boolean is an enum\n    }\n    return TRUE;\n}')
 edit("WebCore/platform/graphics/skia/FontCacheSkia.cpp", '#else\n#include <skia/ports/SkFontMgr_fontconfig.h>\n#endif\n',
