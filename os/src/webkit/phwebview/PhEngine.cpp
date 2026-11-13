@@ -89,6 +89,7 @@
 namespace WebCore {
 class StorageSessionProvider;
 Ref<StorageSessionProvider> phCookieStorageSessionProvider();   // ResourceHandleSymbian.cpp: the process's cookie jar
+void phCookiesFlush(bool force);                                // ResourceHandleSymbian.cpp: writes its persistent cookies
 }
 
 using namespace WebCore;
@@ -387,7 +388,7 @@ private:
 // and "Decline" were forgotten on the next page. Upstream the UI process keeps the areas (WebKit2) or StorageAreaImpl +
 // StorageAreaSync (WebKitLegacy), neither of which is in this build. Here: session storage = an in-memory map per origin per
 // page; local storage = a map per origin, loaded from and saved to one file per origin under kPhStorageDir (the browser's
-// private directory, like the cookie database in ResourceHandleSymbian.cpp), so it survives a browser restart. A change marks
+// private directory, like the cookie file in ResourceHandleSymbian.cpp), so it survives a browser restart. A change marks
 // the area dirty; phStorageFlush (the engine loop, and once more when the engine stops) writes dirty areas at most once a second.
 static const char kPhStorageDir[] = "c:/private/e7016b20/webkit/localstorage";
 
@@ -486,6 +487,7 @@ private:
 // the engine loop: write the dirty local storage areas (all of them when force, i.e. the engine is stopping)
 static void phStorageFlush(MonotonicTime now, bool force)
 {
+    phCookiesFlush(force);
     static MonotonicTime last;
     if (phDirtyAreas().isEmpty() || (!force && now - last < 1_s))
         return;

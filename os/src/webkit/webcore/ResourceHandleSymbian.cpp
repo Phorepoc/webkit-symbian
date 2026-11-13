@@ -20,7 +20,7 @@
 #include "CurlRequest.h"
 #include "CurlRequestClient.h"
 #include "CurlResponse.h"
-#include "CookieJarDB.h"
+#include "Cookie.h"
 #include "NetworkStorageSession.h"
 #include "SameSiteInfo.h"
 #include "StorageSessionProvider.h"
@@ -40,6 +40,8 @@
 #include <wtf/MonotonicTime.h>
 #include <wtf/NeverDestroyed.h>
 #include <wtf/RunLoop.h>
+#include <wtf/WallTime.h>
+#include <wtf/text/MakeString.h>
 #include <sys/stat.h>
 #include <unistd.h>
 
@@ -47,22 +49,119 @@ namespace WebCore {
 
 // HTTP cookies. Upstream the network process keeps them (NetworkDataTaskCurl: the Cookie header before each request,
 // Set-Cookie from each response, redirects included); this in-process path had neither, so no site could keep a
-// session. One jar for the process, kept in a CookieJarDB (SQLite) file in the browser's private directory, so
-// persistent cookies (a consent choice, a login) survive a browser restart; session cookies are dropped when the
-// database is opened, as upstream does.
+// session. One jar for the process: the default CookieJarDB (":memory:"; a CookieJarDB file does not open on the
+// device: no database file is created and every cookie write fails). The persistent cookies (a consent choice, a
+// login) are kept in kPhCookieFile instead, so they survive a browser restart: loaded into the jar when it is first
+// used, written again by phCookiesFlush (the engine loop, at most every 2 s, and when the engine stops) when they
+// changed. Session cookies and expired ones are not written, as upstream drops them when its database opens.
+static const char kPhCookieFile[] = "c:/private/e7016b20/webkit/cookies.bin";
+
+static void phPutString(Vector<uint8_t>& out, const String& s)
+{
+    CString u = s.utf8();
+    uint32_t n = u.length();
+    out.append(std::span(reinterpret_cast<const uint8_t*>(&n), sizeof n));
+    out.append(std::span(reinterpret_cast<const uint8_t*>(u.data()), u.length()));
+}
+
+static Vector<uint8_t> phSerializeCookies(NetworkStorageSession& session)
+{
+    Vector<uint8_t> out;
+    double now = WallTime::now().secondsSinceEpoch().milliseconds();
+    for (auto& c : session.getAllCookies()) {
+        if (c.session || !c.expires || *c.expires <= now)
+            continue;
+        phPutString(out, c.name);
+        phPutString(out, c.value);
+        phPutString(out, c.domain);
+        phPutString(out, c.path);
+        double expires = *c.expires;
+        out.append(std::span(reinterpret_cast<const uint8_t*>(&expires), sizeof expires));
+        out.append(static_cast<uint8_t>((c.httpOnly ? 1 : 0) | (c.secure ? 2 : 0) | (static_cast<uint8_t>(c.sameSite) << 2)));
+    }
+    return out;
+}
+
+static Vector<uint8_t>& phCookiesWritten()
+{
+    static NeverDestroyed<Vector<uint8_t>> written;
+    return written.get();
+}
+
+static void phLoadCookies(NetworkStorageSession& session)
+{
+    FILE* f = fopen(kPhCookieFile, "rb");
+    if (!f)
+        return;
+    auto readString = [f](String& s) {
+        uint32_t n;
+        if (fread(&n, sizeof n, 1, f) != 1 || n > (1u << 20))
+            return false;
+        Vector<char> buf(n);
+        if (n && fread(buf.mutableSpan().data(), 1, n, f) != n)
+            return false;
+        s = String::fromUTF8(buf.span());
+        return true;
+    };
+    double now = WallTime::now().secondsSinceEpoch().milliseconds();
+    unsigned count = 0;
+    for (;;) {
+        Cookie c;
+        double expires;
+        uint8_t flags;
+        if (!readString(c.name) || !readString(c.value) || !readString(c.domain) || !readString(c.path)
+            || fread(&expires, sizeof expires, 1, f) != 1 || fread(&flags, 1, 1, f) != 1)
+            break;
+        if (expires <= now)
+            continue;
+        c.expires = expires;
+        c.httpOnly = flags & 1;
+        c.secure = flags & 2;
+        c.sameSite = static_cast<Cookie::SameSitePolicy>((flags >> 2) & 3);
+        session.setCookie(c);
+        ++count;
+    }
+    fclose(f);
+    phCookiesWritten() = phSerializeCookies(session);
+    printf("phweb: %u cookies from %s\n", count, kPhCookieFile);
+}
+
 NetworkStorageSession& phCookieStorageSession()
 {
     static NeverDestroyed<NetworkStorageSession> session(PAL::SessionID::legacyPrivateSessionID());
-    static bool opened;
-    if (!opened) {
-        opened = true;
-        mkdir("c:/private/e7016b20/webkit", 0700);
-        auto db = makeUniqueRef<CookieJarDB>("c:/private/e7016b20/webkit/cookies.db"_s);
-        db->open();
-        session.get().setCookieDatabase(WTF::move(db));
-        printf("phweb: cookie jar c:/private/e7016b20/webkit/cookies.db, %u domains\n", session.get().cookieDatabase().allDomains().size());
+    static bool loaded;
+    if (!loaded) {
+        loaded = true;
+        phLoadCookies(session.get());
     }
     return session.get();
+}
+
+// the engine loop: write the persistent cookies when they changed (force: the engine is stopping, no 2 s wait)
+void phCookiesFlush(bool force)
+{
+    static MonotonicTime last;
+    MonotonicTime now = MonotonicTime::now();
+    if (!force && now - last < 2_s)
+        return;
+    last = now;
+    Vector<uint8_t> data = phSerializeCookies(phCookieStorageSession());
+    if (data == phCookiesWritten())
+        return;
+    mkdir("c:/private/e7016b20/webkit", 0700);
+    String tmp = makeString(String::fromLatin1(kPhCookieFile), ".tmp"_s);
+    CString tmpPath = tmp.utf8();
+    FILE* f = fopen(tmpPath.data(), "wb");
+    if (!f)
+        return;
+    bool ok = fwrite(data.span().data(), 1, data.size(), f) == data.size();
+    ok &= fclose(f) == 0;
+    if (ok) {
+        remove(kPhCookieFile);
+        rename(tmpPath.data(), kPhCookieFile);
+        phCookiesWritten() = WTF::move(data);
+    } else
+        remove(tmpPath.data());
 }
 
 class PhStorageSessionProvider final : public StorageSessionProvider {
