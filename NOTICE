@@ -3,7 +3,9 @@ Copyright The Phorepoc Authors (see AUTHORS)
 
 Phorepoc was founded by Kyriakos Bompotis.
 
-Our files (os/src, recipes, registry, tests) are licensed under the BSD 2-Clause License (LICENSE), the licence WebKit
+Our files (os/src, recipes, registry, tests) are licensed under the BSD 2-Clause License (LICENSE), except the
+phewebengine plug-in (os/src/phewebengine_webkit), which is EPL-2.0 with GPL-2.0-or-later as a Secondary License
+(EPL-2.0 OR GPL-2.0-or-later, LICENSES/EPL-2.0.txt). BSD-2-Clause is the licence WebKit
 uses for the new files of a port, so that the port can be contributed upstream.
 
 WebKit itself is not copied here: recipes/fetch_sources.sh fetches the WPE WebKit 2.54.1 release (and the curl network

@@ -1,5 +1,5 @@
 // Copyright The Phorepoc Authors
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: EPL-2.0 OR GPL-2.0-or-later
 
 // phewebengine_webkit.cpp -- the WebKit engine as a Phorepoc web-engine package: an ECom plug-in implementing the PheWebEngineApi
 // table (webengine repository, interface 0xE7016B01) over the existing embedding seam (PhEngineApi.h, the same engine thread
