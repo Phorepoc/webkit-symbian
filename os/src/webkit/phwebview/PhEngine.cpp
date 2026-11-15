@@ -8,6 +8,7 @@
  * Each view is a Page with its own frame loader client; navigation events are derived from the loader (policy decisions, the
  * document loaders, title, progress, finish/fail) and posted for the facade to turn into BrCtl load events.
  */
+#include <cstdlib>
 #include "config.h"
 
 #include "PhDatabaseProvider.h"
@@ -1464,6 +1465,11 @@ int ph_eng_main(PhEngNotify notify, void* ctx)
     // profiler pcs in the engine (RAM-loaded code) can be named
     ph_serialf("phengine: start (ph_eng_main at %p)", reinterpret_cast<void*>(&ph_eng_main));
     curl_global_init(CURL_GLOBAL_DEFAULT);
+    // connections: our curl has no HTTP/2, so every request in flight holds its own HTTP/1.1 connection. WebKit's
+    // default cap of 17 in total let a busy page's open requests (beacons, ads, reCAPTCHA) take all of them; the next
+    // navigation to a new host then waited for a connection forever (reddit.com, then amazon.com: no response, no
+    // error). 256 in total, 6 per host = Chrome's socket pool. Read once, when the network context is made.
+    setenv("WEBKIT_CURL_MAX_TOTAL_CONNECTIONS", "256", 0);
     JSC::initialize();
     WTF::initializeMainThread();
     Phorepoc::PhPlatformStrategies::initialize();
