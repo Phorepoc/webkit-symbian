@@ -785,6 +785,9 @@ void CPhBrCtl::HandleEvent(const PhEvent& aEvent)
         EditFocusChanged(aEvent.a);
         SoftkeysChanged();
         break;
+    case PH_EV_DOWNLOAD:
+        ph_eng_download_cancel(iView, aEvent.id);   // the BrCtl API here has no download UI: the engine must not hold the data
+        break;
     default:
         break;
         }

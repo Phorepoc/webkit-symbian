@@ -480,6 +480,9 @@ int A_get_str(PheView v, int which, unsigned short* buf, int cap)
 	case PHE_STR_NEWVIEW: w = PH_STR_NEWWIN; break;
 	case PHE_STR_FOCUS_URL: w = PH_STR_FOCUS_URL; break;
 	case PHE_STR_FOCUS_VALUE: w = PH_STR_FOCUS_VALUE; break;
+	case PHE_STR_DL_URL: w = PH_STR_DL_URL; break;
+	case PHE_STR_DL_NAME: w = PH_STR_DL_NAME; break;
+	case PHE_STR_DL_MIME: w = PH_STR_DL_MIME; break;
 	default: break;
 		}
 	return w < 0 ? 0 : ph_eng_get_str(v, w, buf, cap);
@@ -490,7 +493,7 @@ int Translate(int aView, const PhEvent& e, PheEvent* aOut)
 	aOut->view = aView;
 	aOut->a = e.a;
 	aOut->b = e.b;
-	aOut->id = 0;
+	aOut->id = e.id;
 	switch (e.kind)
 		{
 	case PH_EV_START: aOut->kind = PHE_EV_START; return 1;
@@ -503,6 +506,9 @@ int Translate(int aView, const PhEvent& e, PheEvent* aOut)
 	case PH_EV_HISTORY: aOut->kind = PHE_EV_HISTORY; return 1;
 	case PH_EV_FOCUS: aOut->kind = PHE_EV_FOCUS; return 1;
 	case PH_EV_NEW_WINDOW: aOut->kind = PHE_EV_NEW_VIEW; aOut->a = 0; return 1;
+	case PH_EV_DOWNLOAD: aOut->kind = PHE_EV_DOWNLOAD; return 1;
+	case PH_EV_DOWNLOAD_PROGRESS: aOut->kind = PHE_EV_DOWNLOAD_PROGRESS; return 1;
+	case PH_EV_DOWNLOAD_DONE: aOut->kind = PHE_EV_DOWNLOAD_DONE; return 1;
 	default: return 0;
 		}
 	}
@@ -610,13 +616,13 @@ int A_snapshot(PheView v, unsigned int* dst, int w, int h, int stride)
 void A_find(PheView, const unsigned short*, int, int) {}
 void A_find_next(PheView, int) {}
 void A_find_close(PheView) {}
-void A_download_accept(PheView, unsigned, const unsigned short*, int) {}
-void A_download_cancel(PheView, unsigned) {}
+void A_download_accept(PheView v, unsigned id, const unsigned short* path, int len) { ph_eng_download_accept(v, id, path, len); }
+void A_download_cancel(PheView v, unsigned id) { ph_eng_download_cancel(v, id); }
 void A_clear_data(int) {}
 
 // What this engine does today: script (JavaScriptCore, CLoop or JIT), TLS 1.3 (BoringSSL-free OpenSSL under curl), a snapshot for the
-// tab grid, zoom (page scale + the meta viewport; the frontend pinches / double-taps). Not yet: find, downloads, private views, suspend, session state, reflow.
-const unsigned KCaps = PHE_CAP_SCRIPT | PHE_CAP_TLS13 | PHE_CAP_SNAPSHOT | PHE_CAP_ZOOM;
+// tab grid, zoom (page scale + the meta viewport; the frontend pinches / double-taps), downloads. Not yet: find, private views, suspend, session state, reflow.
+const unsigned KCaps = PHE_CAP_SCRIPT | PHE_CAP_TLS13 | PHE_CAP_SNAPSHOT | PHE_CAP_ZOOM | PHE_CAP_DOWNLOAD;
 
 const PheWebEngineApi KApi =
 	{

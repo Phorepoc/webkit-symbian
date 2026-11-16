@@ -33,18 +33,23 @@ enum {
     PH_EV_REPAINT,      /* new pixels available */
     PH_EV_HISTORY,      /* canBack / canForward changed */
     PH_EV_FOCUS,        /* a = the focused element kind (0 none, 1 anchor, 2 input) */
-    PH_EV_NEW_WINDOW    /* the page asked for a new window (target=_blank): the URL is in PH_STR_NEWWIN */
+    PH_EV_NEW_WINDOW,   /* the page asked for a new window (target=_blank): the URL is in PH_STR_NEWWIN */
+    PH_EV_DOWNLOAD,     /* a navigation became a download (id): PH_STR_DL_*; answer with ph_eng_download_accept / _cancel */
+    PH_EV_DOWNLOAD_PROGRESS, /* id: a = percent (-1 unknown), b = KB so far */
+    PH_EV_DOWNLOAD_DONE /* id: a = 0 saved, else an error code */
 };
 
 typedef struct PhEvent {
     int kind;
     int a;
     int b;
+    unsigned id;   /* the download (PH_EV_DOWNLOAD*), else 0 */
 } PhEvent;
 
 /* ph_eng_get_str */
 enum { PH_STR_URL = 0, PH_STR_TITLE = 1, PH_STR_ERROR = 2, PH_STR_FOCUS_URL = 3, PH_STR_NEWWIN = 4, PH_STR_TEXT = 5,
-       PH_STR_FOCUS_VALUE = 6 /* the focused text field's value when focus became 2 ("" for a password) */ };
+       PH_STR_FOCUS_VALUE = 6 /* the focused text field's value when focus became 2 ("" for a password) */,
+       PH_STR_DL_URL = 7, PH_STR_DL_NAME = 8, PH_STR_DL_MIME = 9 /* the download last announced (PH_EV_DOWNLOAD) */ };
 
 /* ph_eng_cmd */
 enum { PH_CMD_STOP = 0, PH_CMD_RELOAD = 1, PH_CMD_BACK = 2, PH_CMD_FORWARD = 3, PH_CMD_ACTIVATE = 4 };
@@ -78,6 +83,9 @@ void ph_eng_view_visible(int view, int visible);
 void ph_eng_set_iap(const char* utf8Name);                  /* the Open C interface name curl uses (setdefaultif) */
 void ph_eng_set_useragent(const unsigned short* s, int len);   /* the User-Agent (ASCII); len 0 = the engine's default */
 void ph_eng_load(int view, const unsigned short* url, int len);
+/* downloads: the file the frontend chose for download `id` (a path the engine thread can open), or no file */
+void ph_eng_download_accept(int view, unsigned id, const unsigned short* path, int len);
+void ph_eng_download_cancel(int view, unsigned id);
 void ph_eng_cmd(int view, int cmd);
 void ph_eng_pointer(int view, int type, int x, int y);
 void ph_eng_scroll(int view, int dx, int dy);              /* relative, view pixels */

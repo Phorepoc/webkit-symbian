@@ -207,6 +207,8 @@ for m in ("dispatchDidFailProvisionalLoad(const ResourceError&, WillContinueLoad
           "dispatchDecidePolicyForResponse(const ResourceResponse&, const ResourceRequest&, const String&, FramePolicyFunction&&)",
           "dispatchDecidePolicyForNewWindowAction(const NavigationAction&, const ResourceRequest&, FormState*, const String&, std::optional<HitTestResult>&&, FramePolicyFunction&&)",
           "dispatchDecidePolicyForNavigationAction(const NavigationAction&, const ResourceRequest&, const ResourceResponse& redirectResponse, FormState*, const String&, std::optional<NavigationIdentifier>, std::optional<HitTestResult>&&, bool, NavigationUpgradeToHTTPSBehavior, SandboxFlags, PolicyDecisionMode, FramePolicyFunction&&)",
+          "startDownload(const ResourceRequest&, const String&, FromDownloadAttribute = FromDownloadAttribute::No)",
+          "dispatchDidStartProvisionalLoad()","dispatchWillPerformClientRedirect(const URL&, double, WallTime, LockBackForwardList)",
           "committedLoad(DocumentLoader*, const SharedBuffer&)", "createFrame(const AtomString&, HTMLFrameOwnerElement&)", "transitionToCommittedForNewPage(InitializingIframe)", "canHandleRequest(const ResourceRequest&) const", "canShowMIMEType(const String&) const", "canShowMIMETypeAsHTML(const String&) const"):
     edit("WebCore/loader/EmptyFrameLoaderClient.h", m + " final;", m + " override;")
 # the BrCtl engine's ChromeClient (phwebview PhChromeClient) derives from EmptyChromeClient: keyboard focus

@@ -9,7 +9,9 @@
  * document loaders, title, progress, finish/fail) and posted for the facade to turn into BrCtl load events.
  */
 #include "config.h"
+#include <algorithm>
 #include <cstdlib>
+#include <memory>
 
 #include "PhDatabaseProvider.h"
 #include "PhEngineApi.h"
@@ -56,6 +58,9 @@
 #include <WebCore/ProgressTracker.h>
 #include <WebCore/ResourceError.h>
 #include <WebCore/ResourceRequest.h>
+#include <WebCore/ResourceHandle.h>
+#include <WebCore/ResourceHandleClient.h>
+#include <WebCore/SharedBuffer.h>
 #include <WebCore/ResourceResponse.h>
 #include <wtf/MonotonicTime.h>
 #include <wtf/RunLoop.h>
@@ -111,8 +116,8 @@ struct Shared {
     int evHead { 0 }, evCount { 0 };
     bool notifyPending { false };
     bool repaintQueued { false };
-    unsigned short str[7][kStrMax];
-    int strLen[7] { };
+    unsigned short str[10][kStrMax];
+    int strLen[10] { };
     PhViewState state { };
     unsigned* front { nullptr };   // allocated and freed by the UI thread (ph_eng_view_create / _resize / _destroy)
     int fw { 0 }, fh { 0 };
@@ -135,7 +140,8 @@ volatile int gQuit;
 
 constexpr int kTextMax = 4096;
 struct Cmd {
-    enum Type { Create, Destroy, Resize, Visible, Load, Command, Pointer, Scroll, Key, Setting, SetIap, Zoom, SetField } type;
+    enum Type { Create, Destroy, Resize, Visible, Load, Command, Pointer, Scroll, Key, Setting, SetIap, Zoom, SetField, DownloadAccept,
+        DownloadCancel } type;
     int view;
     int a, b, c;
     int textLen;
@@ -146,7 +152,7 @@ constexpr int kCmds = 128;
 Cmd gCmdRing[kCmds];   // static storage: zero-initialised, no constructor
 int gCmdHead, gCmdCount;
 
-void post(int view, int kind, int a = 0, int b = 0)
+void post(int view, int kind, int a = 0, int b = 0, unsigned id = 0)
 {
     bool wake = false;
     pthread_mutex_lock(&gLock);
@@ -159,7 +165,7 @@ void post(int view, int kind, int a = 0, int b = 0)
             s.repaintQueued = true;
         }
         if (queue && s.evCount < kEvents) {
-            s.events[(s.evHead + s.evCount) % kEvents] = { kind, a, b };
+            s.events[(s.evHead + s.evCount) % kEvents] = { kind, a, b, id };
             ++s.evCount;
         }
         wake = !s.notifyPending;
@@ -238,6 +244,7 @@ struct PhView {
     bool userZoomed { false };        // the frontend zoomed (pinch / double-tap): the engine stops fitting
     bool viewportDirty { true };      // a new document: re-derive the viewport
     ViewportArguments vpArgs;
+    bool becameDownload { false };    // the current navigation's response went to a download: its policy failure is not an error
 };
 
 std::vector<PhView*> gViews;
@@ -250,6 +257,200 @@ PhView* findView(int id)
         if (v->id == id)
             return v;
     return nullptr;
+}
+
+// ---- downloads --------------------------------------------------------------------------------------------------------------
+// A main-frame response the engine does not show (or one sent as an attachment) becomes a download: the policy answer is Ignore,
+// so the page stays, and the URL is fetched again by a ResourceHandle of its own -- WebCore's curl path, with the same TLS setup,
+// cookies and proxy as the page. The frontend chooses the file (PH_EV_DOWNLOAD asks, ph_eng_download_accept answers); data that
+// comes before the answer is held in memory, up to kDownloadEarlyMax. All of it lives on the engine thread.
+constexpr size_t kDownloadEarlyMax = 64 * 1024 * 1024;
+unsigned gNextDownload;
+
+class PhDownload final : public ResourceHandleClient {
+public:
+    int view { 0 };
+    unsigned id { 0 };
+    RefPtr<ResourceHandle> handle;
+    FILE* file { nullptr };
+    CString path;
+    Vector<uint8_t> early;
+    long long got { 0 }, total { -1 };
+    bool accepted { false }, finished { false }, ended { false };
+    int error { 0 };
+    int lastPct { -2 };
+    MonotonicTime lastPost;
+
+    void willSendRequestAsync(ResourceHandle*, ResourceRequest&& request, ResourceResponse&&, CompletionHandler<void(ResourceRequest&&)>&& done) final
+    {
+        done(WTF::move(request));   // follow redirects (release assets go to a CDN)
+    }
+    void didReceiveResponseAsync(ResourceHandle*, ResourceResponse&& response, CompletionHandler<void()>&& done) final
+    {
+        if (response.httpStatusCode() >= 400)
+            error = response.httpStatusCode();   // the body is an error page: kept out of the file
+        total = response.expectedContentLength();
+        done();
+    }
+    void didReceiveData(ResourceHandle*, const SharedBuffer& buffer, int) final
+    {
+        auto data = buffer.span();
+        if (error)
+            return;
+        if (file) {
+            if (fwrite(data.data(), 1, data.size(), file) != data.size())
+                error = -1;
+        } else if (early.size() + data.size() > kDownloadEarlyMax)
+            error = -1;
+        else
+            early.append(data);
+        got += data.size();
+        progress();
+    }
+    void didFinishLoading(ResourceHandle*, const NetworkLoadMetrics&) final
+    {
+        finished = true;
+        maybeEnd();
+    }
+    void didFail(ResourceHandle*, const ResourceError& e) final
+    {
+        if (!error)
+            error = e.errorCode() ? e.errorCode() : -1;
+        finished = true;
+        maybeEnd();
+    }
+
+    void progress()
+    {
+        const int pct = total > 0 ? static_cast<int>(got * 100 / total) : -1;
+        const MonotonicTime now = MonotonicTime::now();
+        if (pct == lastPct && (now - lastPost).seconds() < 0.5)
+            return;
+        lastPct = pct;
+        lastPost = now;
+        post(view, PH_EV_DOWNLOAD_PROGRESS, pct, static_cast<int>(got >> 10), id);
+    }
+    void accept(const String& to)
+    {
+        if (accepted)
+            return;
+        accepted = true;
+        path = to.utf8();
+        if (!error) {
+            file = path.length() ? fopen(path.data(), "wb") : nullptr;
+            if (!file || (early.size() && fwrite(early.span().data(), 1, early.size(), file) != early.size())) {
+                ph_serialf("phengine: download %u cannot write %s", id, path.data());
+                error = -1;
+            }
+        }
+        early.clear();
+        early.shrinkToFit();
+        if (error && !finished) {   // nothing more to write: stop the transfer
+            if (handle)
+                handle->cancel();
+            finished = true;
+        }
+        maybeEnd();
+    }
+    // the end, once both are known (the transfer ended, the frontend answered); sweepDownloads frees it outside the callbacks
+    void maybeEnd()
+    {
+        if (!accepted || !finished || ended)
+            return;
+        ended = true;
+        if (file && fclose(file) && !error)
+            error = -1;
+        file = nullptr;
+        if (error && path.length())
+            remove(path.data());
+        ph_serialf("phengine: download %u %s (%d), %lld bytes", id, error ? "FAILED" : "saved", error, got);
+        post(view, PH_EV_DOWNLOAD_DONE, error, 0, id);
+    }
+    void cancel()
+    {
+        if (handle && !finished)
+            handle->cancel();
+        finished = accepted = ended = true;
+        if (file)
+            fclose(file);
+        file = nullptr;
+        if (path.length())
+            remove(path.data());
+        post(view, PH_EV_DOWNLOAD_DONE, -3 /* KErrCancel */, 0, id);
+    }
+};
+std::vector<std::unique_ptr<PhDownload>> gDownloads;
+
+// "a%20b.zip" -> "a b.zip" (UTF-8 escapes); the frontend makes it a safe file name
+String percentDecoded(StringView s)
+{
+    Vector<uint8_t> out;
+    CString in = s.utf8();
+    auto hex = [](char c) { return c >= '0' && c <= '9' ? c - '0' : c >= 'a' && c <= 'f' ? c - 'a' + 10 : c >= 'A' && c <= 'F' ? c - 'A' + 10 : -1; };
+    for (size_t i = 0; i < in.length(); ++i) {
+        const char* p = in.data() + i;
+        if (p[0] == '%' && i + 2 < in.length() && hex(p[1]) >= 0 && hex(p[2]) >= 0) {
+            out.append(static_cast<uint8_t>(hex(p[1]) * 16 + hex(p[2])));
+            i += 2;
+        } else
+            out.append(static_cast<uint8_t>(p[0]));
+    }
+    String r = String::fromUTF8(out.span());
+    return r.isNull() ? s.toString() : r;
+}
+
+// (a navigation's response, or <a download="name"> before any response: then name is the attribute's, mime and total unknown)
+void phStartDownload(int view, FrameLoader& loader, const ResourceRequest& request, String name, const String& mime, long long total)
+{
+    auto d = std::make_unique<PhDownload>();
+    d->view = view;
+    d->id = ++gNextDownload;
+    d->total = total;
+    if (name.isEmpty())
+        name = percentDecoded(request.url().lastPathComponent());
+    setStr(view, PH_STR_DL_URL, request.url().string());
+    setStr(view, PH_STR_DL_NAME, name);
+    setStr(view, PH_STR_DL_MIME, mime);
+    d->handle = ResourceHandle::create(loader.networkingContext(), request, d.get(), false /* defersLoading */, false /* shouldContentSniff */,
+        ContentEncodingSniffingPolicy::Default, nullptr, false /* isMainFrameNavigation */);
+    ph_serialf("phengine: download %u %s", d->id, request.url().string().utf8().data());
+    if (!d->handle) {
+        d->error = -1;
+        d->finished = true;
+    }
+    post(view, PH_EV_DOWNLOAD, 0, 0, d->id);
+    gDownloads.push_back(std::move(d));
+}
+
+PhDownload* findDownload(unsigned id)
+{
+    for (auto& d : gDownloads)
+        if (d->id == id)
+            return d.get();
+    return nullptr;
+}
+void downloadAccept(unsigned id, const String& path)
+{
+    if (PhDownload* d = findDownload(id))
+        d->accept(path);
+}
+void downloadCancel(unsigned id)
+{
+    if (PhDownload* d = findDownload(id))
+        d->cancel();
+}
+// ended downloads go from the engine loop, never from inside their own ResourceHandle callbacks
+void sweepDownloads()
+{
+    gDownloads.erase(std::remove_if(gDownloads.begin(), gDownloads.end(), [](auto& d) {
+        if (!d->ended)
+            return false;
+        if (d->handle) {
+            d->handle->clearClient();
+            d->handle = nullptr;
+        }
+        return true;
+    }), gDownloads.end());
 }
 
 class PhFrameLoaderClient final : public EmptyFrameLoaderClient {
@@ -297,13 +498,20 @@ private:
         return String::fromUTF8(ua.c_str());
     }
 
-    void dispatchDecidePolicyForNavigationAction(const NavigationAction&, const ResourceRequest& request, const ResourceResponse&, FormState*, const String&, std::optional<NavigationIdentifier>,
+    void dispatchDecidePolicyForNavigationAction(const NavigationAction& action, const ResourceRequest& request, const ResourceResponse&, FormState*, const String&, std::optional<NavigationIdentifier>,
         std::optional<HitTestResult>&&, bool, NavigationUpgradeToHTTPSBehavior, SandboxFlags, PolicyDecisionMode, FramePolicyFunction&& function) final
     {
+        // <a download>: the policy answer Download makes WebCore call startDownload (below) with the attribute's name; the page stays
+        if (!action.downloadAttribute().isNull() && request.url().protocolIsInHTTPFamily()) {
+            function(PolicyAction::Download);
+            return;
+        }
         if (isMain()) {
+            ph_serialf("phengine: navigate %s", request.url().string().utf8().data());
             PhView* v = findView(m_view);
             if (v && !request.url().protocolIsAbout() && !request.url().protocolIsData()) {
                 // the UI's own load already announced itself (PH_EV_START a=0 from Load); anything else is the page's
+                v->becameDownload = false;
                 if (!v->loading) {
                     v->loading = true;
                     v->stopRequested = false;
@@ -316,9 +524,25 @@ private:
         }
         function(PolicyAction::Use);
     }
-    void dispatchDecidePolicyForResponse(const ResourceResponse& response, const ResourceRequest&, const String&, FramePolicyFunction&& function) final
+    void dispatchDecidePolicyForResponse(const ResourceResponse& response, const ResourceRequest& request, const String&, FramePolicyFunction&& function) final
     {
+        // a main-frame response the engine does not show, or one the server sends as an attachment: a download, and the page
+        // stays (before, the click did nothing and an attachment of a type it shows -- CSV, text -- replaced the page)
+        if (isMain() && response.httpStatusCode() < 300 && request.url().protocolIsInHTTPFamily()
+            && (response.isAttachment() || !MIMETypeRegistry::canShowMIMEType(response.mimeType()))) {
+            if (PhView* v = findView(m_view))
+                v->becameDownload = true;
+            phStartDownload(m_view, m_frameLoader, request, response.suggestedFilename(), response.mimeType(), response.expectedContentLength());
+            function(PolicyAction::Ignore);
+            return;
+        }
         function(MIMETypeRegistry::canShowMIMEType(response.mimeType()) ? PolicyAction::Use : PolicyAction::Ignore);
+    }
+    // <a download>: WebCore asks for the download instead of navigating
+    void startDownload(const ResourceRequest& request, const String& suggestedName, FromDownloadAttribute) final
+    {
+        if (request.url().protocolIsInHTTPFamily())
+            phStartDownload(m_view, m_frameLoader, request, suggestedName, String(), -1);
     }
     void dispatchDecidePolicyForNewWindowAction(const NavigationAction&, const ResourceRequest& request, FormState*, const String&, std::optional<HitTestResult>&&, FramePolicyFunction&& function) final
     {
@@ -350,10 +574,40 @@ private:
             return;
         fail(error);
     }
-    void dispatchDidFailProvisionalLoad(const ResourceError& error, WillContinueLoading, WillInternallyHandleFailure) final
+    void dispatchDidStartProvisionalLoad() final
     {
-        if (!isMain() || error.isCancellation())
+        if (isMain())
+            if (RefPtr loader = m_frameLoader.provisionalDocumentLoader())
+                ph_serialf("phengine: provisional load %s", loader->request().url().string().utf8().data());
+    }
+    void dispatchWillPerformClientRedirect(const URL& url, double interval, WallTime, LockBackForwardList) final
+    {
+        if (isMain())
+            ph_serialf("phengine: the page navigates in %.1f s to %s", interval, url.string().utf8().data());
+    }
+    void dispatchDidFailProvisionalLoad(const ResourceError& error, WillContinueLoading willContinue, WillInternallyHandleFailure) final
+    {
+        if (!isMain())
             return;
+        if (error.isCancellation()) {
+            // another navigation replaced it (WillContinueLoading::Yes), or it was stopped for good: then the load is over --
+            // before, nothing was posted and the tab showed a load running forever
+            ph_serialf("phengine: provisional load cancelled %s%s", error.failingURL().string().utf8().data(),
+                willContinue == WillContinueLoading::Yes ? " (another load follows)" : "");
+            if (willContinue == WillContinueLoading::No)
+                if (PhView* v = findView(m_view); v && v->loading && !m_frameLoader.provisionalDocumentLoader()) {
+                    v->loading = false;
+                    v->becameDownload = false;
+                    post(m_view, PH_EV_FINISHED, 0);
+                }
+            return;
+        }
+        if (PhView* v = findView(m_view); v && v->becameDownload) {   // the policy stopped it for the download: the load just ends
+            v->becameDownload = false;
+            v->loading = false;
+            post(m_view, PH_EV_FINISHED, 0);
+            return;
+        }
         if (PhView* v = findView(m_view)) {
             int code = error.errorCode();
             bool transient = code == 6 || code == 7 || code == 28 || code == 35 || code == 52 || code == 56;
@@ -583,6 +837,7 @@ void createView(const Cmd& cmd)
     v->page = page.ptr();
     page->settings().setAcceleratedCompositingEnabled(false);
     page->settings().setScriptEnabled(true);
+    page->settings().setDownloadAttributeEnabled(true);
     auto& settings = page->settings();
 #include "PhWpeSettings.inc"
     settings.setMediaSourceEnabled(false);
@@ -728,6 +983,7 @@ void loadUrl(PhView& v, const String& url, bool retry = false)
     // data: URL, as desktop browsers do for a typed one (DocumentLoader::disallowDataRequest cancelled it after the response)
     FrameLoadRequest request(*frame, ResourceRequest(URL { u }));
     request.setIsRequestFromClientOrUserInput();
+    ph_serialf("phengine: load %s", u.string().utf8().data());
     frame->loader().load(WTF::move(request));
 }
 
@@ -1029,6 +1285,14 @@ void runCommands()
             selectAccessPoint(std::string(cmd.utf8));
             continue;
         }
+        if (cmd.type == Cmd::DownloadAccept) {   // (the view may be gone: a download outlives its tab)
+            downloadAccept(static_cast<unsigned>(cmd.a), fromU16(cmd.text, cmd.textLen));
+            continue;
+        }
+        if (cmd.type == Cmd::DownloadCancel) {
+            downloadCancel(static_cast<unsigned>(cmd.a));
+            continue;
+        }
         PhView* v = findView(cmd.view);
         if (!v)
             continue;
@@ -1322,6 +1586,24 @@ void ph_eng_load(int view, const unsigned short* url, int len)
     enqueue(c);
 }
 
+void ph_eng_download_accept(int view, unsigned id, const unsigned short* path, int len)
+{
+    Cmd c;
+    initCmd(c, Cmd::DownloadAccept, view);
+    c.a = static_cast<int>(id);
+    c.textLen = len < kTextMax ? len : kTextMax;
+    memcpy(c.text, path, c.textLen * sizeof(unsigned short));
+    enqueue(c);
+}
+
+void ph_eng_download_cancel(int view, unsigned id)
+{
+    Cmd c;
+    initCmd(c, Cmd::DownloadCancel, view);
+    c.a = static_cast<int>(id);
+    enqueue(c);
+}
+
 void ph_eng_set_field(int view, const unsigned short* s, int len)
 {
     Cmd c;
@@ -1423,7 +1705,7 @@ int ph_eng_get_str(int view, int which, unsigned short* buf, int cap)
     int len = 0;
     pthread_mutex_lock(&gLock);
     auto it = gShared.find(view);
-    if (it != gShared.end() && which >= 0 && which < 7) {
+    if (it != gShared.end() && which >= 0 && which < 10) {
         len = it->second->strLen[which];
         int n = len < cap ? len : cap;
         if (n > kStrMax)
@@ -1486,6 +1768,7 @@ int ph_eng_main(PhEngNotify notify, void* ctx)
     while (!gQuit) {
         MonotonicTime t0 = MonotonicTime::now();
         runCommands();
+        sweepDownloads();
         MonotonicTime t1 = MonotonicTime::now();
         RunLoop::cycle();
         MonotonicTime now = MonotonicTime::now();
