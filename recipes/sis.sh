@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: BSD-2-Clause
 #
 # sis.sh -- the pdk's package.yml runs it after the components: the engine plug-in as
-# $PHOREPOC_BUILD/sis/webkit-symbian-<arch>.sis (the DLL and its ECom registration; the CA bundle is the image's).
+# $PHOREPOC_BUILD/sis/wpewebkit-symbian-<arch>.sis (the DLL and its ECom registration; the CA bundle is the image's).
 set -eu
 ARCH=${PHOREPOC_ARCH:-x32}
 if [ "$ARCH" = arm ]; then KEY=phewebengine_webkit_arm; AFL=--arm; else KEY=phewebengine_webkit; AFL=; fi
@@ -26,4 +26,4 @@ for f in "$REPO"/LICENSES/* "$REPO/LICENSE" "$REPO/NOTICE" "$REPO/SOURCE-OFFER.t
 done
 python3 "$PHOREPOC_PDK/tools/make_sis.py" $KEY $AFL --unsigned --version "${PHOREPOC_PACKAGE_VERSION:-1.0.0}" \
   --name "WebKit web engine" --vendor Phorepoc $LIC \
-  --out "$PHOREPOC_BUILD/sis/webkit-symbian-$ARCH.sis"
+  --out "$PHOREPOC_BUILD/sis/wpewebkit-symbian-$ARCH.sis"

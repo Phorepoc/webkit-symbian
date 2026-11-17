@@ -3,7 +3,7 @@
 
 // phebrctl.mmp -- the BrCtl facade over WebKit 2.54. Built to the
 // ROM name browserengine.dll with the old engine's UIDs: BrowserNG, Messaging's HTML viewer and Help load it by name and call
-// CreateBrowserControlL (ordinal 1, the only export any client imports). The engine is a PREBUILT set of archives (webkit-symbian
+// CreateBrowserControlL (ordinal 1, the only export any client imports). The engine is a PREBUILT set of archives (wpewebkit-symbian
 // recipes: build_webcore.sh phengine -> package_web.sh -> $PHOREPOC_BUILD/thirdparty/x86/cxxrt/web/*.a), linked through the
 // registry's x32_archives; compiled here: the facade, the Symbian-API shim (phebsym.cpp) and ph_throw.cpp.
 TARGET			browserengine.dll

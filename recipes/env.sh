@@ -29,7 +29,7 @@ if [ "$ARCH" = arm ]; then
 else
     TP=x86; LTRIP=x86_64-unknown-elf; CROSS=; PROC=x86_64; OSSL_TARGET=linux-x32; OSDEF=""
 fi
-WK_WORK=$PHOREPOC_BUILD/webkit-symbian-work
+WK_WORK=$PHOREPOC_BUILD/wpewebkit-symbian-work
 DL=$WK_WORK/dl                      # the pinned source tarballs
 V=$WK_WORK/$ARCH
 LOG=$WK_WORK/logs/$ARCH

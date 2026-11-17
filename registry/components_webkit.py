@@ -1,8 +1,8 @@
 # Copyright The Phorepoc Authors
 # SPDX-License-Identifier: BSD-2-Clause
 
-r"""components_webkit -- the webkit-symbian layer's components (merged into core's registry when this repository is built:
-PHOREPOC_ADAPTATIONS=<board adaptations>:<tls>:<cxxrt>:<webkit-symbian>, see the pdk's tools/emitter/paths.py).
+r"""components_webkit -- the wpewebkit-symbian layer's components (merged into core's registry when this repository is built:
+PHOREPOC_ADAPTATIONS=<board adaptations>:<tls>:<cxxrt>:<wpewebkit-symbian>, see the pdk's tools/emitter/paths.py).
 
 OS paths are relative to the merged OS tree. The engine is not in the tree: build.sh makes prebuilt archives under
 $PHOREPOC_BUILD/thirdparty/{x86,arm}/cxxrt/web/ (WebCore, PAL, JavaScriptCore, WTF, bmalloc, Skia and the libraries below

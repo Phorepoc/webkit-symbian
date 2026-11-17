@@ -18,14 +18,14 @@ skipped, listed.
 Regenerate:
   python3 recipes/gen_wpe_settings.py [UnifiedWebPreferences.yaml] [out.inc]
 The YAML defaults to the one in the unpacked WebKit tree (Source/WTF/Scripts/Preferences/UnifiedWebPreferences.yaml under
-$PHOREPOC_BUILD/webkit-symbian-work/x32/wpewebkit-2.54.1). Needs PyYAML.
+$PHOREPOC_BUILD/wpewebkit-symbian-work/x32/wpewebkit-2.54.1). Needs PyYAML.
 """
 import os, re, sys
 import yaml
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 BUILD = os.environ.get('PHOREPOC_BUILD') or os.path.join(HERE, '..', '..', 'core', 'build')
-YAML = sys.argv[1] if len(sys.argv) > 1 else os.path.join(BUILD, 'webkit-symbian-work', 'x32', 'wpewebkit-2.54.1', 'Source', 'WTF', 'Scripts', 'Preferences', 'UnifiedWebPreferences.yaml')
+YAML = sys.argv[1] if len(sys.argv) > 1 else os.path.join(BUILD, 'wpewebkit-symbian-work', 'x32', 'wpewebkit-2.54.1', 'Source', 'WTF', 'Scripts', 'Preferences', 'UnifiedWebPreferences.yaml')
 OUT = sys.argv[2] if len(sys.argv) > 2 else os.path.join(HERE, '..', 'os', 'src', 'webkit', 'phwebview', 'PhWpeSettings.inc')
 
 # ---- macro truth tables (unknown macro = false) ----

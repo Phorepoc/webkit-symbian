@@ -3,7 +3,7 @@
 
 // phebrctl.cpp -- browserengine.dll's replacement. Ordinal 1,
 // CreateBrowserControlL, hands BrowserNG (and Messaging, Help, ...) a CBrCtlInterface that shows pages rendered by WebKit 2.54
-// (WebCore + JSC + Skia, webkit-symbian) on an engine thread of its own.
+// (WebCore + JSC + Skia, wpewebkit-symbian) on an engine thread of its own.
 #include "phebrctl.h"
 #include "PhEngineApi.h"
 #include <e32debug.h>

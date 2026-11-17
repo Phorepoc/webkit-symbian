@@ -1,4 +1,4 @@
-# webkit-symbian
+# wpewebkit-symbian
 
 This is a modern [WebKit](https://webkit.org) running on Phorepoc OS. It's WPE WebKit 2.54.1, with current HTML, CSS and
 JavaScript and TLS 1.3, sitting behind the browser control API Symbian apps have used since 2010. Apps that show web
@@ -23,13 +23,13 @@ the [pdk](https://github.com/Phorepoc/pdk), cxxrt, tls and this repository side 
 ```sh
 docker run --rm --cpus=6 -v "$PWD/..:/src" -e JOBS=4 -e PHOREPOC_PDK=/src/pdk -e PHOREPOC_CORE=/src/core \
     -e PHOREPOC_BUILD=/src/core/build ghcr.io/phorepoc/web \
-    bash -c 'bash /src/cxxrt/build.sh && bash /src/webkit-symbian/build.sh'
+    bash -c 'bash /src/cxxrt/build.sh && bash /src/wpewebkit-symbian/build.sh'
 ```
 
 Add `-e ARCH=arm` for an ARM device. Once that's done, build the components:
 
 ```sh
-export PHOREPOC_ADAPTATIONS=<device repositories>:<tls>:<cxxrt>:<webkit-symbian>
+export PHOREPOC_ADAPTATIONS=<device repositories>:<tls>:<cxxrt>:<wpewebkit-symbian>
 phe component build -b myboard phwebtest phebrctl
 ```
 

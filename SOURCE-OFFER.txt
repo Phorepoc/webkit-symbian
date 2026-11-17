@@ -20,7 +20,7 @@ it from:
      (WPE WebKit 2.54.1 from https://wpewebkit.org/releases/, WebKit's curl backend from the same tag of
      https://github.com/WebKit/WebKit, and every library listed above).
   2. Our changes to them, our own files, and the scripts that fetch, patch, build and package the engine:
-       https://github.com/Phorepoc/webkit-symbian   (the release tag of this package)
+       https://github.com/Phorepoc/wpewebkit-symbian   (the release tag of this package)
      with the toolchain images and build tools in https://github.com/Phorepoc/toolchain and https://github.com/Phorepoc/pdk.
 
 Written offer: if the links above are no longer available, send a request to the address given on the Phorepoc

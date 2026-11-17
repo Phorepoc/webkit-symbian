@@ -8,7 +8,7 @@
 #
 # On the host, with the pdk's `phe` on PATH, after `bash build.sh` (in the toolchain container) and with the tls layer's
 # CA bundle fetched (the registry entry stages it as \resource\ssl\ca-bundle.crt):
-#   PHOREPOC_ADAPTATIONS=<board adaptations>:<tls>:<cxxrt>:<webkit-symbian> PHOREPOC_RUN='<command>' bash tests/web_boot.sh
+#   PHOREPOC_ADAPTATIONS=<board adaptations>:<tls>:<cxxrt>:<wpewebkit-symbian> PHOREPOC_RUN='<command>' bash tests/web_boot.sh
 # PHOREPOC_RUN boots the built ROM (give the guest at least 1 GB of RAM) and writes its serial log to stdout; it is not part of
 # this repository. BOARD defaults to pc.
 set -eu
