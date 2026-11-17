@@ -592,8 +592,9 @@ private:
         if (error.isCancellation()) {
             // another navigation replaced it (WillContinueLoading::Yes), or it was stopped for good: then the load is over --
             // before, nothing was posted and the tab showed a load running forever
-            ph_serialf("phengine: provisional load cancelled %s%s", error.failingURL().string().utf8().data(),
-                willContinue == WillContinueLoading::Yes ? " (another load follows)" : "");
+            ph_serialf("phengine: provisional load cancelled %s%s [%s %d: %s]", error.failingURL().string().utf8().data(),
+                willContinue == WillContinueLoading::Yes ? " (another load follows)" : "", error.domain().utf8().data(),
+                error.errorCode(), error.localizedDescription().utf8().data());
             if (willContinue == WillContinueLoading::No)
                 if (PhView* v = findView(m_view); v && v->loading && !m_frameLoader.provisionalDocumentLoader()) {
                     v->loading = false;
@@ -983,6 +984,10 @@ void loadUrl(PhView& v, const String& url, bool retry = false)
     // data: URL, as desktop browsers do for a typed one (DocumentLoader::disallowDataRequest cancelled it after the response)
     FrameLoadRequest request(*frame, ResourceRequest(URL { u }));
     request.setIsRequestFromClientOrUserInput();
+    // a load the user started is not a form submission: WebCore clears its "submitted form" URL only on a mouse/key press
+    // inside the page (EventHandler), never on the frontend's address bar, so after a page submitted a form (x.com does,
+    // hidden) every typed URL was checked against that page's CSP form-action and cancelled before its request was made
+    frame->loader().resetMultipleFormSubmissionProtection();
     ph_serialf("phengine: load %s", u.string().utf8().data());
     frame->loader().load(WTF::move(request));
 }
