@@ -70,6 +70,10 @@
 #include <WebCore/LocalFrame.h>
 #include <WebCore/LocalFrameInlines.h>
 #include <WebCore/LocalFrameView.h>
+#include <WebCore/BackForwardCache.h>
+#include <WebCore/CommonVM.h>
+#include <JavaScriptCore/VM.h>
+#include <WebCore/MemoryCache.h>
 #include <WebCore/MemoryRelease.h>
 #include <WebCore/Page.h>
 #include <WebCore/ProcessIdentifier.h>
@@ -102,6 +106,56 @@ using namespace WebCore;
 
 extern "C" int setdefaultif(const struct ifreq*);
 extern "C" void ph_serialf(const char*, ...);   // phsym.cpp / phebsym.cpp
+extern "C" void ph_heap_usage(int* used, int* max);   // phsym.cpp / phebsym.cpp
+
+// ---- memory: the engine thread's heap is the bound -------------------------------------------------------------------------
+// WebKit's own ports size the object cache and the back/forward cache from the machine's RAM (WebKit/Shared/CacheModel.cpp,
+// PrimaryWebBrowser) and release memory when the OS reports pressure (MemoryPressureHandler). We set neither: WebCore's defaults
+// and no pressure signal let a session of 16 sites + Speedometer fill the engine's whole heap (466 of 488 MB) and JetStream's
+// first allocation then ended the engine (bbadbeef). The heap's maximum is what this process may use, so it stands in for RAM.
+static void phSetCacheModel()
+{
+    int used = 0, max = 0;
+    ph_heap_usage(&used, &max);
+    unsigned mb = unsigned(max) >> 20;
+    // CacheModel.cpp, PrimaryWebBrowser, by memory size
+    unsigned total = mb >= 2048 ? 128 : mb >= 1536 ? 96 : mb >= 1024 ? 64 : mb >= 512 ? 32 : 16;
+    unsigned backForward = mb >= 512 ? 2 : mb >= 256 ? 1 : 0;
+    total <<= 20;
+    MemoryCache::singleton().setCapacities(total / 4, total / 2, total);
+    BackForwardCache::singleton().setMaxSize(backForward);
+    ph_serialf("phengine: cache model: heap max %u MB -> object cache %u MB, back/forward %u pages", mb, total >> 20, backForward);
+}
+
+// the state behind a memory figure, one line: what a growing heap is made of
+static void phMemoryLog(const char* when)
+{
+    int used = 0, max = 0;
+    ph_heap_usage(&used, &max);
+    ph_serialf("phengine: mem %s: heap %d/%d MB, object cache %u KB, back/forward %u, documents %u, js heap %u MB", when,
+        used >> 20, max >> 20, MemoryCache::singleton().size() >> 10, BackForwardCache::singleton().pageCount(),
+        Document::allDocumentsMap().size(), unsigned(commonVM().heap.size() >> 20));
+}
+
+// the pressure signal the OS does not give us: above 60% of the heap WebKit's "warning" release (caches, a GC), above 80% its
+// "critical" one (also the back/forward cache and a synchronous full GC), as MemoryPressureHandler would. A release that frees
+// little is not repeated until the heap grows by another 10% of its maximum: Speedometer's live data stays above 60%, and a
+// synchronous release every 5 s that freed nothing (361 -> 367 MB) cut its score from 1.99 to 1.28.
+static void phMemoryPressureCheck()
+{
+    static int sNextCheck = 0;   // heap use below which no release is tried again
+    int used = 0, max = 0;
+    ph_heap_usage(&used, &max);
+    if (max <= 0 || used < max / 10 * 6 || used < sNextCheck)
+        return;
+    bool critical = used >= max / 10 * 8;
+    phMemoryLog(critical ? "critical, before release" : "warning, before release");
+    releaseMemory(critical ? Critical::Yes : Critical::No, Synchronous::Yes);
+    int after = 0;
+    ph_heap_usage(&after, &max);
+    sNextCheck = used - after < max / 20 ? after + max / 10 : 0;
+    phMemoryLog("after release");
+}
 
 namespace {
 
@@ -566,6 +620,7 @@ private:
             v->loading = false;
             v->dirty = true;
         }
+        phMemoryLog("finished");
         post(m_view, PH_EV_FINISHED, 0);
     }
     void dispatchDidFailLoad(const ResourceError& error) final
@@ -1762,6 +1817,7 @@ int ph_eng_main(PhEngNotify notify, void* ctx)
     Phorepoc::PhPlatformStrategies::initialize();
     WebCore::Process::setIdentifier(WebCore::Process::generateIdentifier());
     gRunning = 1;
+    phSetCacheModel();
     ph_serialf("phengine: running");
     MonotonicTime nextFrame;
     // Self-profile (one "phengine: prof" line per 5 s): where the engine thread's time goes. On the phone the thread sat at ~100% of a
@@ -1833,6 +1889,7 @@ int ph_eng_main(PhEngNotify notify, void* ctx)
                 iters, tCmd * 1000, tCycle * 1000, slowCycles, tRender * 1000, tPaint * 1000, paints, anyLoading ? 1 : 0);
             iters = paints = slowCycles = 0;
             tCmd = tCycle = tRender = tPaint = 0;
+            phMemoryPressureCheck();
         }
         phStorageFlush(now, false);
         usleep(idle && !busy ? (quiet ? 40000 : 20000) : 5000);

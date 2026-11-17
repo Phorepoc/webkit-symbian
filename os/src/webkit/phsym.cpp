@@ -193,6 +193,15 @@ extern "C" void ph_heap_check(const char* aWhen)
 	RDebug::Printf("[js] heap ok after %s: %d cells %d bytes, size %d", aWhen, cells, allocSize, User::Heap().Size());
 	}
 
+// the calling thread's heap: bytes in allocated cells and the heap's maximum (the engine's memory-pressure check)
+extern "C" void ph_heap_usage(int* aUsed, int* aMax)
+	{
+	TInt allocSize = 0;
+	(void)User::AllocSize(allocSize);
+	*aUsed = allocSize;
+	*aMax = User::Heap().MaxLength();
+	}
+
 // a failed allocation (bmalloc's SystemHeap, just before its RELEASE_BASSERT ends the engine with far 0xbbadbeef): the request
 // and the calling thread's heap, so the log tells a full heap (max reached) from a bogus size or a fragmented one
 extern "C" void ph_oom_report(size_t aSize)
